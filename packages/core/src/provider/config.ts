@@ -2,14 +2,18 @@ import {
   DEFAULT_EMBEDDING_BATCH_SIZE,
   DEFAULT_EMBEDDING_MODEL,
   PLATFORM_PROVIDER,
+  SERVICE_FIELDS,
   USER_PROVIDER,
   emptyEmbeddingSettings,
   emptyLlmSettings,
+  emptyServiceSettings,
   type EmbeddingSettings,
   type LlmSettings,
   type PlatformProviderConfig,
   type ResolvedEmbeddingConfig,
   type ResolvedLlmConfig,
+  type ResolvedServiceConfig,
+  type ServiceSettings,
 } from './model.ts'
 
 export function normalizeEmbeddingApiBase(apiBase: string): string {
@@ -94,4 +98,43 @@ export function embeddingTarget(settings: EmbeddingSettings): string {
   const normalized = normalizeEmbeddingSettings(settings)
   if (embeddingModeOf(normalized) === 'api') return normalized.api_model || DEFAULT_EMBEDDING_MODEL
   return normalized.local_path || normalized.local_model || DEFAULT_EMBEDDING_MODEL
+}
+
+/** 部署方是否为某一项服务提供了凭据。 */
+export function platformServiceReady(platform: PlatformProviderConfig, field: keyof ServiceSettings): boolean {
+  return Boolean((platform.services?.[field] || '').trim())
+}
+
+/** 部署方提供了哪些服务凭据。前端据此在设置页标出「由平台提供」。 */
+export function platformServiceFields(platform: PlatformProviderConfig): Array<keyof ServiceSettings> {
+  return SERVICE_FIELDS.filter((field) => platformServiceReady(platform, field))
+}
+
+/**
+ * 逐字段决定每一项服务凭据用谁的。
+ *
+ * 与 LLM 的整体切换不同:各服务彼此独立,所以用户只填了 DashScope 时,
+ * Tavily 仍然可以落回平台。用户自己填过的字段永远优先——既不会被平台覆盖,
+ * 也保证平台 key 只停留在内存里(回填进用户配置就是泄露路径)。
+ */
+export function resolveServiceConfig(
+  own: ServiceSettings | undefined,
+  platform: PlatformProviderConfig,
+): ResolvedServiceConfig {
+  const mine = own || emptyServiceSettings()
+  const resolved = emptyServiceSettings()
+  const platformFields: Array<keyof ServiceSettings> = []
+  for (const field of SERVICE_FIELDS) {
+    const ownValue = (mine[field] || '').trim()
+    if (ownValue) {
+      resolved[field] = ownValue
+      continue
+    }
+    const platformValue = (platform.services?.[field] || '').trim()
+    if (platformValue) {
+      resolved[field] = platformValue
+      platformFields.push(field)
+    }
+  }
+  return { ...resolved, platform_fields: platformFields }
 }

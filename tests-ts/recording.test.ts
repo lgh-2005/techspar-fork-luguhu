@@ -9,11 +9,21 @@ import {
   type ChatMessage,
   type PersistentTaskDispatcher,
   type ProviderSettingsRepository,
+  type PlatformProviderConfig,
   type RequestContext,
   type TaskRecord,
   type TextGenerationUseCases,
 } from '@techspar/core'
 import { BunInterviewSessionRepository } from '@techspar/db'
+
+/** 不提供任何服务兜底的平台配置：让测试断言的是「用户自己的凭据被用上」。 */
+const noPlatformServices: PlatformProviderConfig = {
+  llm: { api_base: '', api_key: '', model: '' },
+  embedding: { api_base: '', api_key: '', api_model: '' },
+  dailyCallLimit: 0,
+  tokenLimit: 0,
+  tokenWindow: 'day',
+}
 
 const directories: string[] = []
 async function databasePath(): Promise<string> { const directory = await mkdtemp(join(tmpdir(), 'techspar-recording-')); directories.push(directory); return join(directory, 'techspar.db') }
@@ -37,7 +47,7 @@ describe('long recording transcription', () => {
       async loadProvider() { return { services: { dashscope_api_key: 'ds', tavily_api_key: '', oss_access_key_id: 'ak', oss_access_key_secret: 'secret', oss_bucket: 'bucket', oss_endpoint: 'oss.example.test' } } }, async saveProvider() {},
       async loadTraining() { return { num_questions: 10, divergence: 3 } }, async saveTraining() {}, async loadLastReindexAt() { return '' }, async saveLastReindexAt() {}, async loadSystem() { return undefined }, async saveSystem() {},
     }
-    const service = new LongTranscriptionService(settings, { async transcribe(input) { received = `${input.services.oss_bucket}:${input.suffix}:${input.bytes.length}`; return '转写结果' } })
+    const service = new LongTranscriptionService(settings, noPlatformServices, { async transcribe(input) { received = `${input.services.oss_bucket}:${input.suffix}:${input.bytes.length}`; return '转写结果' } })
     expect(await service.transcribe(context, new Uint8Array([1, 2, 3]), '.webm')).toBe('转写结果')
     expect(received).toBe('bucket:.webm:3')
   })

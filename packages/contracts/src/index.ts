@@ -40,6 +40,47 @@ export const AuthConfigSchema = z.object({
   allow_registration: z.boolean(),
 })
 
+/** 管理员视角下的一个账号。created_at 可能为空串——上游把该列的默认值写成了字面量。 */
+export const ManagedUserSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string(),
+  is_admin: z.boolean(),
+  disabled: z.boolean(),
+  created_at: z.string().default(''),
+})
+
+/** 带用量的账号视图，只有列表接口会带这两项。 */
+export const ManagedUserUsageSchema = ManagedUserSchema.extend({
+  /** 消耗部署方额度的 token 数（走平台 key 的部分）。 */
+  platform_tokens: z.number().int().nonnegative().default(0),
+  /** 该账号的全部 token 用量。 */
+  total_tokens: z.number().int().nonnegative().default(0),
+})
+
+export const ManagedUserListSchema = z.object({
+  total: z.number().int().nonnegative(),
+  active: z.number().int().nonnegative(),
+  disabled: z.number().int().nonnegative(),
+  admins: z.number().int().nonnegative(),
+  users: z.array(ManagedUserUsageSchema),
+})
+
+/** 局部更新。两个字段都可选，只传要改的那个。 */
+export const UpdateManagedUserSchema = z.object({
+  disabled: z.boolean().optional(),
+  new_password: z.string().min(8).max(128).optional(),
+})
+
+export const UpdateManagedUserResponseSchema = ManagedUserSchema
+
+export const DeleteManagedUserResponseSchema = z.object({
+  ok: z.literal(true),
+  deleted: z.string(),
+  /** 磁盘上的用户目录是否也清掉了。库里已删干净，这里为 false 只表示留了残留文件。 */
+  files_removed: z.boolean().default(true),
+})
+
 export const ServiceInfoSchema = z.object({
   service: z.literal('TechSpar'),
   version: z.string(),
@@ -74,6 +115,16 @@ export const ServiceSettingsSchema = z.object({
   oss_endpoint: z.string().default(''),
 })
 
+/** 可选服务的字段名。用来标记哪一项凭据由部署方提供，不含凭据值本身。 */
+export const ServiceFieldSchema = z.enum([
+  'dashscope_api_key',
+  'tavily_api_key',
+  'oss_access_key_id',
+  'oss_access_key_secret',
+  'oss_bucket',
+  'oss_endpoint',
+])
+
 export const SystemSettingsSchema = z.object({ allow_registration: z.boolean().default(false) })
 export const TrainingSettingsSchema = z.object({
   num_questions: z.number().int().min(5).max(20).default(10),
@@ -90,6 +141,11 @@ export const SettingsViewSchema = z.object({
   configured: ProviderStatusSchema.default({ llm: false, embedding: false }),
   /** 本部署是否提供共享 key */
   platform: ProviderStatusSchema.default({ llm: false, embedding: false }),
+  /**
+   * 部署方提供了哪些服务凭据。刻意只报字段名——`services` 会被前端整体 PUT 回
+   * 来时原样入库，把平台凭据的值放进来就等于泄露部署方的密钥。
+   */
+  platform_services: z.array(ServiceFieldSchema).default([]),
   /** 此刻实际生效的 key 来源 */
   source: z.enum(['user', 'platform']).default('user'),
   last_reindex_at: z.string().default(''),

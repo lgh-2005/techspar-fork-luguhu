@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Boxes,
   UserCog,
+  Users,
   RotateCw,
   KeyRound,
   Plug,
@@ -34,6 +35,7 @@ import {
   deleteVoiceprintEnrollment,
 } from "../api/voiceprint";
 import { exportPersonalData, exportSystemData, importData } from "../api/dataMigration";
+import { deleteUser, listUsers, updateUser } from "../api/users";
 import AfdianIcon from "../components/AfdianIcon";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -45,6 +47,26 @@ import { isDesktopApp } from "@/lib/desktop";
 // 录音参数
 const VP_SAMPLE_RATE = 16000;
 const VP_MIN_SECONDS = 6;
+
+/** token 数以千/百万缩写，免得管理员列表里全是 7 位数。 */
+function formatTokens(value) {
+  const n = Number(value) || 0;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+/**
+ * 注册时间。
+ *
+ * 上游早期把 users.created_at 的默认值写成了字符串，旧行里存的是那串文本本身，
+ * 后端已把这种值归一化成空串，这里再兜一层显示成「未知」而不是假时间。
+ */
+function formatCreatedAt(value) {
+  const text = (value || "").trim();
+  if (!text || text === "CURRENT_TIMESTAMP") return "未知";
+  return text.slice(0, 16).replace("T", " ");
+}
 
 // ── WAV / PCM 工具（用于声纹录音上传）──
 
@@ -222,6 +244,7 @@ export default function Settings() {
   const voiceprintRef = useRef(null);
   const trainingRef = useRef(null);
   const accountRef = useRef(null);
+  const usersRef = useRef(null);
   const migrationRef = useRef(null);
   const sectionRefs = {
     llm: llmRef,
@@ -230,6 +253,7 @@ export default function Settings() {
     voiceprint: voiceprintRef,
     training: trainingRef,
     account: accountRef,
+    users: usersRef,
     migration: migrationRef,
   };
   const scrollSpyLock = useRef(false);
@@ -246,6 +270,92 @@ export default function Settings() {
   const [migrationMessage, setMigrationMessage] = useState("");
   const [migrationError, setMigrationError] = useState("");
   const importFileInputRef = useRef(null);
+
+  // ── 用户管理状态（仅管理员可见）──
+  const [userList, setUserList] = useState(null); // null 表示尚未加载
+  const [usersBusy, setUsersBusy] = useState("");
+  const [usersError, setUsersError] = useState("");
+  const [usersMessage, setUsersMessage] = useState("");
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetPassword, setResetPassword] = useState("");
+  // 部署方提供了哪些可选服务凭据（只有字段名，值不会下发）
+  const [platformServiceFields, setPlatformServiceFields] = useState([]);
+
+  const refreshUsers = useCallback(async () => {
+    try {
+      setUsersError("");
+      setUserList(await listUsers());
+    } catch (err) {
+      setUsersError(err.message || "加载账号列表失败");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) void refreshUsers();
+  }, [isAdmin, refreshUsers]);
+
+  async function toggleUserDisabled(user) {
+    setUsersBusy(`disabled:${user.id}`);
+    setUsersError("");
+    setUsersMessage("");
+    try {
+      await updateUser(user.id, { disabled: !user.disabled });
+      setUsersMessage(
+        user.disabled
+          ? `已启用 ${user.email}`
+          : `已停用 ${user.email}。该账号无法再登录，已签发的登录态立即失效。`
+      );
+      await refreshUsers();
+    } catch (err) {
+      setUsersError(err.message || "操作失败");
+    } finally {
+      setUsersBusy("");
+    }
+  }
+
+  async function submitResetPassword() {
+    if (!resetTarget) return;
+    const next = resetPassword.trim();
+    if (next.length < 8) {
+      setUsersError("新密码至少 8 位");
+      return;
+    }
+    setUsersBusy(`password:${resetTarget.id}`);
+    setUsersError("");
+    setUsersMessage("");
+    try {
+      await updateUser(resetTarget.id, { new_password: next });
+      setUsersMessage(`已重置 ${resetTarget.email} 的密码，请单独告知本人。`);
+      setResetTarget(null);
+      setResetPassword("");
+    } catch (err) {
+      setUsersError(err.message || "重置失败");
+    } finally {
+      setUsersBusy("");
+    }
+  }
+
+  async function confirmDeleteUser() {
+    if (!pendingDelete) return;
+    setUsersBusy(`delete:${pendingDelete.id}`);
+    setUsersError("");
+    setUsersMessage("");
+    try {
+      const result = await deleteUser(pendingDelete.id);
+      setUsersMessage(
+        result.files_removed === false
+          ? `已删除 ${pendingDelete.email}，但磁盘上仍有残留文件，建议手动清理 data/users/${pendingDelete.id}`
+          : `已删除 ${pendingDelete.email}，其训练历史、简历、画像与本地文件均已清除。`
+      );
+      setPendingDelete(null);
+      await refreshUsers();
+    } catch (err) {
+      setUsersError(err.message || "删除失败");
+    } finally {
+      setUsersBusy("");
+    }
+  }
 
   useEffect(() => {
     getSettings()
@@ -274,6 +384,7 @@ export default function Settings() {
         setOssEndpoint(svc.oss_endpoint || "");
         setAllowRegistration(Boolean(data.system?.allow_registration));
         setIsAdmin(Boolean(data.is_admin));
+        setPlatformServiceFields(Array.isArray(data.platform_services) ? data.platform_services : []);
         setLastReindexAt(data.last_reindex_at || "");
         setNumQuestions(data.training.num_questions ?? 10);
         setDivergence(data.training.divergence ?? 3);
@@ -695,6 +806,7 @@ export default function Settings() {
     { id: "voiceprint", label: "声纹识别", icon: Mic },
     { id: "training", label: "训练参数", icon: Sliders },
     { id: "account", label: "账户", icon: UserCog },
+    { id: "users", label: "用户管理", icon: Users },
     { id: "migration", label: "数据迁移", icon: Database },
   ];
 
@@ -1153,7 +1265,11 @@ export default function Settings() {
                     {showTavily ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                <div className="text-[12px] text-dim/70">不填则 Copilot 跳过公司联网情报。</div>
+                <div className="text-[12px] text-dim/70">
+                  {platformServiceFields.includes("tavily_api_key")
+                    ? "留空即使用部署方提供的共享 Key；填了自己的就优先用自己的。"
+                    : "不填则 Copilot 跳过公司联网情报。"}
+                </div>
               </div>
 
               {/* OSS */}
@@ -1442,6 +1558,158 @@ export default function Settings() {
             )}
           </CardContent>
         </Card>
+
+        {/* User management — administrators only */}
+        {isAdmin && (
+        <Card ref={usersRef} data-tab-id="users" className="overflow-hidden border-border/40 bg-card/40 scroll-mt-4">
+          <CardContent className="p-5 md:p-7">
+            <div className="flex items-center gap-2 mb-1">
+              <Users size={16} className="text-primary" />
+              <span className="text-base font-semibold">用户管理</span>
+            </div>
+            <div className="text-[13px] text-dim mb-5">
+              注册名单、平台额度消耗与账号处置。只有管理员能看到这一块。
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+              {[
+                { label: "注册账号", value: userList ? String(userList.total) : "—" },
+                { label: "启用中", value: userList ? String(userList.active) : "—" },
+                { label: "已停用", value: userList ? String(userList.disabled) : "—" },
+                {
+                  label: "平台 token 消耗",
+                  value: userList
+                    ? formatTokens(userList.users.reduce((sum, item) => sum + (item.platform_tokens || 0), 0))
+                    : "—",
+                },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl border border-border/60 bg-background/40 px-3 py-3">
+                  <div className="text-[11px] text-dim/80">{item.label}</div>
+                  <div className="text-lg font-semibold mt-0.5">{item.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {usersError && (
+              <div className="mb-4 px-3 py-2 rounded-lg bg-red/10 border border-red/20 text-red text-sm">{usersError}</div>
+            )}
+            {usersMessage && (
+              <div className="mb-4 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-sm">{usersMessage}</div>
+            )}
+
+            {userList === null ? (
+              <div className="flex items-center gap-2 text-dim text-sm py-4">
+                <Loader2 size={16} className="animate-spin" /> 正在加载账号…
+              </div>
+            ) : userList.users.length === 0 ? (
+              <div className="text-dim text-sm py-4">还没有其他账号。</div>
+            ) : (
+              <div className="space-y-2">
+                {userList.users.map((user) => (
+                  <div key={user.id} className="rounded-xl border border-border/60 bg-background/40 px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium break-all">{user.email}</span>
+                      {user.is_admin && (
+                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">管理员</span>
+                      )}
+                      {user.disabled && (
+                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-red/15 text-red">已停用</span>
+                      )}
+                    </div>
+                    <div className="text-[12px] text-dim mt-1">
+                      {user.name || "未填名字"} · 注册 {formatCreatedAt(user.created_at)} · 平台用量{" "}
+                      {formatTokens(user.platform_tokens)} / 总用量 {formatTokens(user.total_tokens)}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      <Button
+                        variant="outline"
+                        disabled={user.is_admin || usersBusy === `disabled:${user.id}`}
+                        onClick={() => toggleUserDisabled(user)}
+                      >
+                        {user.disabled ? "启用" : "停用"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={usersBusy === `password:${user.id}`}
+                        onClick={() => {
+                          setResetTarget(user);
+                          setResetPassword("");
+                          setUsersError("");
+                        }}
+                      >
+                        重置密码
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={user.is_admin || usersBusy === `delete:${user.id}`}
+                        onClick={() => {
+                          setPendingDelete(user);
+                          setUsersError("");
+                        }}
+                      >
+                        <Trash2 size={14} className="mr-1" /> 删除
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {resetTarget && (
+              <div className="mt-4 rounded-xl border border-border/60 bg-background/50 p-4">
+                <div className="text-sm font-medium">重置 {resetTarget.email} 的密码</div>
+                <div className="text-[12px] text-dim mt-1">
+                  设一个新密码并单独告知本人。这不会让他当前的登录态失效，必要时请同时停用一次。
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  <Input
+                    className="h-10 rounded-xl max-w-[240px]"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    placeholder="至少 8 位"
+                  />
+                  <Button variant="gradient" disabled={usersBusy === `password:${resetTarget.id}`} onClick={submitResetPassword}>
+                    确认重置
+                  </Button>
+                  <Button variant="outline" onClick={() => { setResetTarget(null); setResetPassword(""); }}>
+                    取消
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {pendingDelete && (
+              <div className="mt-4 rounded-xl border border-red/40 bg-red/5 p-4">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={16} className="text-red mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium text-red">确认删除 {pendingDelete.email}？</div>
+                    <div className="text-[12px] text-dim mt-1">
+                      会永久清除该账号的训练历史、简历、画像、个人资料库与声纹文件，
+                      <span className="text-red">无法恢复</span>。
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <Button
+                    className="bg-red text-white hover:bg-red/90"
+                    disabled={usersBusy === `delete:${pendingDelete.id}`}
+                    onClick={confirmDeleteUser}
+                  >
+                    确认删除
+                  </Button>
+                  <Button variant="outline" onClick={() => setPendingDelete(null)}>取消</Button>
+                </div>
+              </div>
+            )}
+
+            <div className="text-[12px] text-dim/70 mt-4">
+              管理员账号不可停用或删除——管理员身份由 <span className="text-text">DEFAULT_EMAIL</span> 派生，
+              动它等于让全站再没人能管理系统。
+            </div>
+          </CardContent>
+        </Card>
+        )}
 
         {/* Data Migration */}
         <Card ref={migrationRef} data-tab-id="migration" className="overflow-hidden border-border/40 bg-card/40 scroll-mt-4">

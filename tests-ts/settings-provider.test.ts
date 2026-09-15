@@ -12,8 +12,10 @@ import {
   DEFAULT_EMBEDDING_MODEL,
   embeddingTarget,
   normalizeEmbeddingSettings,
+  platformServiceFields,
   resolveEmbeddingConfig,
   resolveLlmConfig,
+  resolveServiceConfig,
   type PlatformProviderConfig,
   type UsageRepository,
   type UserRepository,
@@ -25,6 +27,33 @@ const emptyPlatform: PlatformProviderConfig = {
   embedding: { api_base: '', api_key: '', api_model: '' },
   dailyCallLimit: 0, tokenLimit: 0, tokenWindow: 'day' as const,
 }
+
+const emptyServices = { dashscope_api_key: '', tavily_api_key: '', oss_access_key_id: '', oss_access_key_secret: '', oss_bucket: '', oss_endpoint: '' }
+
+describe('service credential resolution', () => {
+  test('falls back to the platform per field and reports which fields came from it', () => {
+    const platform: PlatformProviderConfig = { ...emptyPlatform, services: { tavily_api_key: 'tv-platform' } }
+    // 逐字段回退：用户填过的保留，没填的才落到平台。
+    const resolved = resolveServiceConfig({ ...emptyServices, dashscope_api_key: 'ds-own' }, platform)
+    expect(resolved.dashscope_api_key).toBe('ds-own')
+    expect(resolved.tavily_api_key).toBe('tv-platform')
+    expect(resolved.platform_fields).toEqual(['tavily_api_key'])
+    expect(platformServiceFields(platform)).toEqual(['tavily_api_key'])
+  })
+
+  test('keeps the user value when both sides provide the same field', () => {
+    const platform: PlatformProviderConfig = { ...emptyPlatform, services: { tavily_api_key: 'tv-platform' } }
+    const resolved = resolveServiceConfig({ ...emptyServices, tavily_api_key: 'tv-own' }, platform)
+    expect(resolved.tavily_api_key).toBe('tv-own')
+    expect(resolved.platform_fields).toEqual([])
+  })
+
+  test('leaves everything empty when neither side configures a service', () => {
+    const resolved = resolveServiceConfig(undefined, emptyPlatform)
+    expect(resolved).toEqual({ ...emptyServices, platform_fields: [] })
+    expect(platformServiceFields(emptyPlatform)).toEqual([])
+  })
+})
 
 describe('provider resolution', () => {
   test('unconfigured users stay unconfigured without a platform fallback', () => {
@@ -75,6 +104,9 @@ describe('quota policy', () => {
     async platformCallsToday(userId: string) { return this.calls.get(userId) || 0 }
     async platformTokensToday(userId: string) { return this.tokens.get(userId) || 0 }
     async platformTokensSince(userId: string) { return this.tokens.get(userId) || 0 }
+    async summarizeByUser() {
+      return [...this.tokens.entries()].map(([userId, totalTokens]) => ({ userId, platformTokens: totalTokens, totalTokens }))
+    }
   }
 
   test('配了 token 上限就按 token 计,而不是次数', async () => {
@@ -114,6 +146,7 @@ describe('settings persistence', () => {
       async findById() { return { id: 'admin', email: 'admin@example.com', name: 'Admin', is_admin: true } },
       async create() { throw new Error('not used') },
       async updatePassword() {},
+      async list() { return [] }, async isActive() { return true }, async setDisabled() { return undefined }, async delete() { return false },
     }
     const registration = { allowRegistration: false }
     const service = new SettingsService(repository, users, { async invalidateUser() {}, resetEmbeddingClient() {} }, emptyPlatform, registration)

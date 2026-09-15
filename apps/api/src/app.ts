@@ -18,6 +18,7 @@ import {
   type CopilotPrepUseCases,
   type CopilotRealtimeUseCases,
   type VoiceprintUseCases,
+  type UserAdminUseCases,
   type SettingsUseCases,
   type SettingsOperationsUseCases,
   type TokenService,
@@ -33,6 +34,7 @@ import { registerDataMigrationRoutes } from './routes/data-migration.ts'
 import { registerRecordingRoutes } from './routes/recording.ts'
 import { registerCopilotRoutes, registerCopilotWebSocket } from './routes/copilot.ts'
 import { registerVoiceprintRoutes } from './routes/voiceprint.ts'
+import { registerUserRoutes } from './routes/users.ts'
 import { registerStaticFrontend } from './http/static-frontend.ts'
 import { createOpenApiDocument } from './http/openapi.ts'
 import { fastApiValidationBody } from './http/validation.ts'
@@ -55,6 +57,7 @@ export type AppDependencies = {
   copilotRealtime?: CopilotRealtimeUseCases
   websocketUpgrade?: UpgradeWebSocket
   voiceprint?: VoiceprintUseCases
+  userAdmin?: UserAdminUseCases
   /** 追加路由。必须在静态前端兜底之前注册,否则会被 app.get('*') 吃掉。 */
   extendRoutes?: (app: OpenAPIHono) => void
   webDir?: string
@@ -95,6 +98,7 @@ export function createApp(deps: AppDependencies): OpenAPIHono {
   if (deps.copilotPrep) registerCopilotRoutes(app, { prep: deps.copilotPrep, tokens: deps.tokens })
   if (deps.copilotRealtime && deps.websocketUpgrade) registerCopilotWebSocket(app, { realtime: deps.copilotRealtime, tokens: deps.tokens, upgrade: deps.websocketUpgrade })
   if (deps.voiceprint) registerVoiceprintRoutes(app, { voiceprint: deps.voiceprint, tokens: deps.tokens })
+  if (deps.userAdmin) registerUserRoutes(app, { users: deps.userAdmin, tokens: deps.tokens })
   deps.extendRoutes?.(app)
   app.get('/openapi.json', (c) => c.json(createOpenApiDocument(app)))
   if (deps.webDir) registerStaticFrontend(app, deps.webDir)

@@ -2,6 +2,7 @@ import { AppError, AuthenticationError } from '../kernel/errors.ts'
 import { parseJsonResponse } from '../kernel/json.ts'
 import type { RequestContext } from '../kernel/context.ts'
 import { fill } from '../interview/prompts.ts'
+import { resolveServiceConfig } from '../provider/config.ts'
 import { STRUCTURED_CHAT_OPTIONS } from '../provider/ports.ts'
 import type { CopilotClientMessage, CopilotConversationTurn, CopilotServerEvent, CopilotSessionState } from './model.ts'
 import type { CopilotDependencies, CopilotRealtimeConnection, CopilotRealtimeUseCases, RealtimeAsrSession } from './ports.ts'
@@ -55,7 +56,8 @@ class RealtimeConnection implements CopilotRealtimeConnection {
     this.state = stored?.prep_id === prepId ? { ...stored, status: 'active', updated_at: now } : { session_id: this.sessionId, user_id: this.userId(), prep_id: prepId, conversation: [], last_node_id: null, turn_count: 0, status: 'active', created_at: now, updated_at: now }
     await this.deps.repository.saveSession(this.state)
     this.stopped = false
-    const key = (await this.deps.settings.loadProvider(this.userId())).services.dashscope_api_key
+    const providerSettings = await this.deps.settings.loadProvider(this.userId())
+    const key = resolveServiceConfig(providerSettings.services, this.deps.platform).dashscope_api_key
     const roleDetector = await this.deps.voiceprint?.detector(this.context)
     if (key) {
       try {

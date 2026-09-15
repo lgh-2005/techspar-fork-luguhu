@@ -18,18 +18,29 @@ import { BcryptPasswordHasher, JoseTokenService, loadConfig, ShortUuidGenerator 
 import rootPackage from '../package.json' with { type: 'json' }
 
 class MemoryUsers implements UserRepository {
-  rows = new Map<string, AuthUser & { password: string }>()
+  rows = new Map<string, AuthUser & { password: string; disabled: boolean; created_at: string }>()
   async findByEmail(email: string) { return [...this.rows.values()].find((row) => row.email === email.toLowerCase().trim()) }
   async findById(id: string) { return this.rows.get(id) }
   async create(input: { id: string; email: string; password: string; name: string }) {
     const user = { id: input.id, email: input.email.toLowerCase().trim(), name: input.name, is_admin: false }
-    this.rows.set(user.id, { ...user, password: input.password })
+    this.rows.set(user.id, { ...user, password: input.password, disabled: false, created_at: '2026-01-01 00:00:00' })
     return user
   }
   async updatePassword(id: string, password: string) {
     const row = this.rows.get(id)
     if (row) this.rows.set(id, { ...row, password })
   }
+  async list() { return [...this.rows.values()].map(({ password: _password, ...user }) => user) }
+  async isActive(id: string) { const row = this.rows.get(id); return Boolean(row) && row!.disabled !== true }
+  async setDisabled(id: string, disabled: boolean) {
+    const row = this.rows.get(id)
+    if (!row) return undefined
+    const next = { ...row, disabled }
+    this.rows.set(id, next)
+    const { password: _password, ...user } = next
+    return user
+  }
+  async delete(id: string) { return this.rows.delete(id) }
 }
 
 class MemorySettings implements ProviderSettingsRepository {
@@ -57,7 +68,7 @@ function testApp(allowRegistration = false) {
   const registration = { allowRegistration }
   const auth = new AuthService(users, passwords, tokens, new ShortUuidGenerator(), registration)
   const settings = new SettingsService(new MemorySettings(), users, { async invalidateUser() {}, resetEmbeddingClient() {} }, platform, registration)
-  const usage = { initialize() {}, async record() {}, async platformCallsToday() { return 0 }, async platformTokensToday() { return 0 }, async platformTokensSince() { return 0 } }
+  const usage = { initialize() {}, async record() {}, async platformCallsToday() { return 0 }, async platformTokensToday() { return 0 }, async platformTokensSince() { return 0 }, async summarizeByUser() { return [] } }
   return { users, config, passwords, app: createApp({ auth, registration, settings, quota: new QuotaService(usage, platform), tokens, knowledge: {} as KnowledgeUseCases, resume: {} as ResumeUseCases }) }
 }
 
@@ -77,7 +88,7 @@ describe('auth compatibility', () => {
 
   test('accepts an existing bcrypt password', async () => {
     const { app, users, passwords } = testApp()
-    users.rows.set('legacy01', { id: 'legacy01', email: 'admin@example.com', name: 'Admin', is_admin: false, password: await passwords.hash('secret') })
+    users.rows.set('legacy01', { id: 'legacy01', email: 'admin@example.com', name: 'Admin', is_admin: false, password: await passwords.hash('secret'), disabled: false, created_at: '' })
     const response = await app.request('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'ADMIN@example.com', password: 'secret' }) })
     expect(response.status).toBe(200)
     expect((await response.json() as { user: AuthUser }).user.id).toBe('legacy01')
@@ -92,7 +103,7 @@ describe('auth compatibility', () => {
 
   test('changes an authenticated account password and rejects the old credential', async () => {
     const { app, users, passwords } = testApp()
-    users.rows.set('user01', { id: 'user01', email: 'user@example.com', name: 'User', is_admin: false, password: await passwords.hash('old-password') })
+    users.rows.set('user01', { id: 'user01', email: 'user@example.com', name: 'User', is_admin: false, password: await passwords.hash('old-password'), disabled: false, created_at: '' })
     const login = await app.request('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'user@example.com', password: 'old-password' }) })
     const token = (await login.json() as { token: string }).token
     const changed = await app.request('/api/auth/password', {
@@ -140,7 +151,7 @@ describe('default account bootstrap', () => {
   test('does not overwrite a custom existing password', async () => {
     const users = new MemoryUsers()
     const passwords = new BcryptPasswordHasher()
-    users.rows.set('owner001', { id: 'owner001', email: 'admin@techspar.local', name: 'Admin', is_admin: true, password: await passwords.hash('my-custom-password') })
+    users.rows.set('owner001', { id: 'owner001', email: 'admin@techspar.local', name: 'Admin', is_admin: true, password: await passwords.hash('my-custom-password'), disabled: false, created_at: '' })
     const result = await ensureDefaultAccount(users, passwords, { next: () => 'unused' }, {
       email: 'admin@techspar.local', password: 'random-desktop-secret', name: 'Admin', rotateLegacyPassword: 'admin123',
     })

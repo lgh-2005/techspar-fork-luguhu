@@ -556,6 +556,21 @@
                         "embedding"
                       ]
                     },
+                    "platform_services": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "dashscope_api_key",
+                          "tavily_api_key",
+                          "oss_access_key_id",
+                          "oss_access_key_secret",
+                          "oss_bucket",
+                          "oss_endpoint"
+                        ]
+                      },
+                      "default": []
+                    },
                     "source": {
                       "type": "string",
                       "enum": [
@@ -782,6 +797,21 @@
                       "llm",
                       "embedding"
                     ]
+                  },
+                  "platform_services": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "dashscope_api_key",
+                        "tavily_api_key",
+                        "oss_access_key_id",
+                        "oss_access_key_secret",
+                        "oss_bucket",
+                        "oss_endpoint"
+                      ]
+                    },
+                    "default": []
                   },
                   "source": {
                     "type": "string",
@@ -4429,6 +4459,245 @@
                   "required": [
                     "ok"
                   ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/users": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "All accounts (administrators only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "active": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "disabled": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "admins": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "is_admin": {
+                            "type": "boolean"
+                          },
+                          "disabled": {
+                            "type": "boolean"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "default": ""
+                          },
+                          "platform_tokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
+                          },
+                          "total_tokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "email",
+                          "name",
+                          "is_admin",
+                          "disabled"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "active",
+                    "disabled",
+                    "admins",
+                    "users"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/users/{user_id}": {
+      "patch": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "user_id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "disabled": {
+                    "type": "boolean"
+                  },
+                  "new_password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "is_admin": {
+                      "type": "boolean"
+                    },
+                    "disabled": {
+                      "type": "boolean"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "default": ""
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "email",
+                    "name",
+                    "is_admin",
+                    "disabled"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "user_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "deleted": {
+                      "type": "string"
+                    },
+                    "files_removed": {
+                      "type": "boolean",
+                      "default": true
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }

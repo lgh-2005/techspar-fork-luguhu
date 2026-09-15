@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 import bcrypt from 'bcryptjs'
 import { jwtVerify, SignJWT } from 'jose'
-import type { IdGenerator, PasswordHasher, TokenService } from '@techspar/core'
+import type { IdGenerator, PasswordHasher, ServiceSettings, TokenService } from '@techspar/core'
 
 export type AppConfig = {
   baseDir: string
@@ -21,6 +21,13 @@ export type AppConfig = {
   platformDailyCallLimit: number
   platformTokenLimit: number
   platformTokenWindow: 'day' | 'month'
+  /**
+   * 部署方共享给全部用户的服务凭据(可选服务)。
+   *
+   * 刻意做成一个整体映射而不是逐项字段:以后要多共享一项服务,
+   * 只需在 loadConfig 里加一行,core / api / 前端都不用跟着改。
+   */
+  platformServices: Partial<ServiceSettings>
   voiceprintEncryptionKey: string
   host: string
   port: number
@@ -50,6 +57,16 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     platformDailyCallLimit: Number(env.PLATFORM_DAILY_CALL_LIMIT || 0),
     platformTokenLimit: Number(env.PLATFORM_TOKEN_LIMIT || 0),
     platformTokenWindow: env.PLATFORM_TOKEN_WINDOW === 'month' ? 'month' : 'day',
+    // 共享给全部用户的可选服务凭据。放开一项服务 = 这里取消一行注释。
+    // 留空即为「不共享」,行为与未配置该变量完全一致。
+    platformServices: {
+      tavily_api_key: env.PLATFORM_TAVILY_API_KEY || '',
+      // dashscope_api_key: env.PLATFORM_DASHSCOPE_API_KEY || '',
+      // oss_access_key_id: env.PLATFORM_OSS_ACCESS_KEY_ID || '',
+      // oss_access_key_secret: env.PLATFORM_OSS_ACCESS_KEY_SECRET || '',
+      // oss_bucket: env.PLATFORM_OSS_BUCKET || '',
+      // oss_endpoint: env.PLATFORM_OSS_ENDPOINT || '',
+    },
     voiceprintEncryptionKey: env.VOICEPRINT_ENCRYPTION_KEY || env.JWT_SECRET || 'change-me-in-production',
     host: env.HOST || '0.0.0.0',
     port: Number(env.PORT || 8000),
@@ -104,6 +121,7 @@ export class ShortUuidGenerator implements IdGenerator {
 }
 
 export * from './provider-settings-repository.ts'
+export * from './user-data-store.ts'
 export * from './knowledge-store.ts'
 export * from './resume-store.ts'
 export * from './profile-repository.ts'

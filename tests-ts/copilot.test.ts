@@ -41,6 +41,8 @@ function dependencies(repository: BunCopilotRepository, tasks: PersistentTaskDis
     repository, tasks, ids: { next: () => 'prep-1' }, ai: new CopilotAi(), embeddings, profile,
     resume: { async status() { return { has_resume: false } }, async file() { throw new Error() }, async upload() { throw new Error() }, async delete() { throw new Error() }, async text() { return '做过订单服务' }, async parse() { throw new Error() }, async transcribe() { throw new Error() } },
     settings: { async loadProvider() { return { services: { dashscope_api_key: '', tavily_api_key: 'tv', oss_access_key_id: '', oss_access_key_secret: '', oss_bucket: '', oss_endpoint: '' } } }, async saveProvider() {}, async loadTraining() { return { num_questions: 10, divergence: 3 } }, async saveTraining() {}, async loadLastReindexAt() { return '' }, async saveLastReindexAt() {}, async loadSystem() { return undefined }, async saveSystem() {} },
+    // 平台不提供任何服务凭据：断言用户自己的 tavily key 被用上。
+    platform: { llm: { api_base: '', api_key: '', model: '' }, embedding: { api_base: '', api_key: '', api_model: '' }, dailyCallLimit: 0, tokenLimit: 0, tokenWindow: 'day' },
     search: { async search() { return [{ title: '示例', content: '工程信息', url: 'https://example.test' }] } },
     asr: { create() { return { async start() {}, sendAudio() { return true }, async stop() {} } } },
   }

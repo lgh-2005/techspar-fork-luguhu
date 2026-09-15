@@ -587,7 +587,20 @@ export default function Landing() {
             >
               爱发电
             </a>
+            <a
+              href="https://github.com/lgh-2005/techspar-fork-luguhu"
+              target="_blank"
+              rel="noreferrer"
+              className="text-dim transition-colors hover:text-text"
+            >
+              本站修改版源码
+            </a>
           </div>
+          {/* AGPL-3.0 要求向通过网络使用的用户提供对应源码，所以这里明示修改版仓库地址。 */}
+          <p className="max-w-2xl text-[11px] leading-relaxed text-dim/70">
+            本站基于 TechSpar（AGPL-3.0，上游 github.com/AnnaSuSu/TechSpar）运行，并加入了自部署改动。
+            按许可证要求，修改版的完整源码公开在「本站修改版源码」链接中。
+          </p>
         </div>
       </footer>
     </div>

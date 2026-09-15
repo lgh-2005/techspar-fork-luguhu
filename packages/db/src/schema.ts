@@ -1,11 +1,17 @@
 import { blob, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   password: text('password').notNull(),
   name: text('name').default(''),
-  createdAt: text('created_at').default('CURRENT_TIMESTAMP'),
+  // 上游这里原本是字符串字面量 `default('CURRENT_TIMESTAMP')`，Drizzle 会在 JS 侧
+  // 套用该默认值，于是把 'CURRENT_TIMESTAMP' 这串文本本身插进库里——注册时间永远
+  // 不是时间戳。必须用 sql 模板才会交给 SQLite 求值。
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  /** 停用后无法登录，且既有 token 立即失效。 */
+  disabled: integer('disabled', { mode: 'boolean' }).notNull().default(false),
 })
 
 export const sessions = sqliteTable('sessions', {

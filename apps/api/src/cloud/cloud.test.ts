@@ -29,6 +29,7 @@ class StubUsage implements UsageRepository {
   async platformCallsToday(): Promise<number> { return 0 }
   async platformTokensToday(): Promise<number> { return this.tokens }
   async platformTokensSince(): Promise<number> { return this.tokens }
+  async summarizeByUser() { return [{ userId: 'user', platformTokens: this.tokens, totalTokens: this.tokens }] }
 }
 
 class StubBaseQuota implements QuotaUseCases {

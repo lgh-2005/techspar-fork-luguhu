@@ -6,6 +6,7 @@ import {
   normalizeLlmSettings,
   platformEmbeddingReady,
   platformLlmReady,
+  platformServiceFields,
   resolveEmbeddingConfig,
   resolveLlmConfig,
 } from './config.ts'
@@ -56,6 +57,8 @@ export class SettingsService implements SettingsUseCases {
         embedding: resolvedEmbedding.backend === 'local' || Boolean(resolvedEmbedding.api_key),
       },
       platform: { llm: platformLlmReady(this.platform), embedding: platformEmbeddingReady(this.platform) },
+      // 只传字段名。平台凭据的值留在内存里,不进这个响应。
+      platform_services: platformServiceFields(this.platform),
       source: resolvedLlm.source,
       last_reindex_at: lastReindexAt,
     }

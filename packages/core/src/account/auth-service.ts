@@ -17,6 +17,8 @@ export class AuthService implements AuthUseCases {
     if (!row || !(await this.passwords.verify(password, row.password))) {
       throw new AppError('Invalid email or password', 401)
     }
+    // 先验密码再报停用,避免把「这个邮箱存在且被停用」泄露给不知道密码的人。
+    if (!(await this.users.isActive(row.id))) throw new AppError('该账号已被停用，请联系管理员。', 403)
     const { password: _, ...user } = row
     return { token: await this.tokens.create(user.id), user }
   }

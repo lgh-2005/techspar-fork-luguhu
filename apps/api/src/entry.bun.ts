@@ -14,11 +14,13 @@ import {
   DataMigrationService,
   QuotaService,
   ResumeService,
+  RevocableTokenService,
   ShortTranscriptionService,
   LongTranscriptionService,
   RecordingService,
   CopilotPrepService,
   CopilotRealtimeService,
+  UserAdminService,
   VoiceprintService,
   SettingsService,
   SettingsOperationsService,
@@ -38,6 +40,7 @@ import {
   PortableDocumentTextExtractor,
   PortablePersonalDocumentExtractor,
   FileMigrationStore,
+  FileUserDataStore,
   EncryptedFileVoiceprintRepository,
   TarGzipArchiveCodec,
 } from '@techspar/platform'
@@ -64,7 +67,9 @@ usageRepository.initialize()
 const settingsRepository = new FileProviderSettingsRepository(config.dataDir)
 const persistedSystem = await settingsRepository.loadSystem()
 const registration = { allowRegistration: persistedSystem?.allow_registration ?? config.allowRegistration }
-const tokens = new JoseTokenService(config.jwtSecret)
+// 包一层即时吊销:JWT 有效 7 天且无法撤回,不查账号状态的话「停用/删除」要等它自然
+// 过期才生效。所有带凭证的请求都经过 decode,所以这一层能覆盖全部路由。
+const tokens = new RevocableTokenService(new JoseTokenService(config.jwtSecret), users)
 const auth = new AuthService(
   users,
   passwordHasher,
@@ -79,6 +84,7 @@ const platform: PlatformProviderConfig = {
     api_key: config.platformEmbeddingApiKey,
     api_model: config.platformEmbeddingModel,
   },
+  services: config.platformServices,
   dailyCallLimit: config.platformDailyCallLimit,
   tokenLimit: config.platformTokenLimit,
   tokenWindow: config.platformTokenWindow,
@@ -108,7 +114,7 @@ const resume = new ResumeService({
   extractor: new PortableDocumentTextExtractor(),
   index: { async invalidate(userId) { await vectorRepository.deleteChunks(userId, 'resume_chunk') } },
   ai,
-  transcription: new ShortTranscriptionService(settingsRepository, new DashScopeShortAsrDriver()),
+  transcription: new ShortTranscriptionService(settingsRepository, platform, new DashScopeShortAsrDriver()),
 })
 const sessions = new BunInterviewSessionRepository(config.dbPath)
 sessions.initialize()
@@ -124,14 +130,15 @@ personalAgentRepository.initialize()
 const personalAgent = new PersonalAgentService({ repository: personalAgentRepository, files: new FilePersonalDocumentStore(config.dataDir), extractor: new PortablePersonalDocumentExtractor(), embeddings, ai, profile, ids: new ShortUuidGenerator() })
 const settingsOperations = new SettingsOperationsService({ chats: chatDrivers, embeddingDrivers, embeddings, index: knowledgeIndex, vectors: vectorRepository, knowledge: knowledgeStore, personal: personalAgent, profile, settings: settingsRepository })
 const interview = new InterviewService({ sessions, states: interviewStates, tasks: taskQueue, ids: new ShortUuidGenerator(), ai, resume, knowledge: knowledgeIndex, knowledgeStore, settings: settingsRepository, profile })
-const recording = new RecordingService({ sessions, tasks: taskQueue, ids: new ShortUuidGenerator(), ai, profile, transcription: new LongTranscriptionService(settingsRepository, new DashScopeLongAsrDriver()) })
+const recording = new RecordingService({ sessions, tasks: taskQueue, ids: new ShortUuidGenerator(), ai, profile, transcription: new LongTranscriptionService(settingsRepository, platform, new DashScopeLongAsrDriver()) })
 const copilotRepository = new BunCopilotRepository(config.dbPath)
 copilotRepository.initialize()
 const voiceprint = new VoiceprintService(new EncryptedFileVoiceprintRepository(config.dataDir, config.voiceprintEncryptionKey), new TencentVoiceprintDriverFactory())
-const copilotDependencies = { repository: copilotRepository, tasks: taskQueue, ids: new ShortUuidGenerator(), ai, embeddings, profile, resume, settings: settingsRepository, search: new TavilyWebSearchDriver(), asr: new DashScopeRealtimeAsrFactory(), voiceprint }
+const copilotDependencies = { repository: copilotRepository, tasks: taskQueue, ids: new ShortUuidGenerator(), ai, embeddings, profile, resume, settings: settingsRepository, platform, search: new TavilyWebSearchDriver(), asr: new DashScopeRealtimeAsrFactory(), voiceprint }
 const copilotPrep = new CopilotPrepService(copilotDependencies)
 const copilotRealtime = new CopilotRealtimeService(copilotDependencies)
 const migration = new DataMigrationService({ codec: new TarGzipArchiveCodec(), database: new BunDataMigrationRepository(config.dbPath), files: new FileMigrationStore(config.dataDir, config.voiceprintEncryptionKey), profiles: profileRepository, users })
+const userAdmin = new UserAdminService({ users, passwords: passwordHasher, usage: usageRepository, data: new FileUserDataStore(config.dataDir) })
 taskQueue.register('resume_review', (task) => interview.runReviewTask(task))
 taskQueue.register('drill_review', (task) => interview.runReviewTask(task))
 taskQueue.register('jd_review', (task) => interview.runReviewTask(task))
@@ -140,7 +147,7 @@ taskQueue.register('copilot_prep', (task) => copilotPrep.runPrepTask(task))
 taskQueue.register('retrospective', (task) => profile.runRetrospectiveTask(task))
 await taskQueue.start()
 const { upgradeWebSocket, websocket } = createBunWebSocket()
-const app = createApp({ auth, registration, settings, settingsOperations, quota, tokens, knowledge, resume, interview, profile, personalAgent, migration, recording, copilotPrep, copilotRealtime, websocketUpgrade: upgradeWebSocket, voiceprint, extendRoutes: (instance) => extensions.routes?.(instance, extensionContext), webDir: config.webDir })
+const app = createApp({ auth, registration, settings, settingsOperations, quota, tokens, knowledge, resume, interview, profile, personalAgent, migration, recording, copilotPrep, copilotRealtime, websocketUpgrade: upgradeWebSocket, voiceprint, userAdmin, extendRoutes: (instance) => extensions.routes?.(instance, extensionContext), webDir: config.webDir })
 
 const server = Bun.serve(withLongRequestTimeout({ hostname: config.host, port: config.port, fetch: app.fetch, websocket }))
 console.log(JSON.stringify({ event: 'techspar:ready', host: config.host, port: server.port }))

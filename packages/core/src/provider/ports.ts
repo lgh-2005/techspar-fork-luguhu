@@ -76,6 +76,8 @@ export interface UsageRepository {
   platformTokensToday(userId: string): Promise<number>
   /** 自某时刻起的平台 token 消耗,用于订阅期内的额度包 */
   platformTokensSince(userId: string, since: string): Promise<number>
+  /** 按用户汇总用量。管理员列表用——一次查完，避免逐用户 N+1。 */
+  summarizeByUser(): Promise<Array<{ userId: string; platformTokens: number; totalTokens: number }>>
 }
 
 export type QuotaUnit = 'token' | 'call'

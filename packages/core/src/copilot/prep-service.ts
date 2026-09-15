@@ -1,6 +1,7 @@
 import type { RequestContext } from '../kernel/context.ts'
 import { AppError, AuthenticationError } from '../kernel/errors.ts'
 import { parseJsonResponse } from '../kernel/json.ts'
+import { resolveServiceConfig } from '../provider/config.ts'
 import { STRUCTURED_CHAT_OPTIONS } from '../provider/ports.ts'
 import { fill } from '../interview/prompts.ts'
 import type { TaskRecord } from '../interview/model.ts'
@@ -64,7 +65,7 @@ export class CopilotPrepService implements CopilotPrepUseCases {
     try {
       await this.deps.repository.updatePrepProgress(prepId, task.user_id, '正在并行分析公司信息、岗位要求和简历匹配度...')
       const [services, resumeText, profileSummary, profile] = await Promise.all([
-        this.deps.settings.loadProvider(task.user_id).then((value) => value.services),
+        this.deps.settings.loadProvider(task.user_id).then((value) => resolveServiceConfig(value.services, this.deps.platform)),
         this.deps.resume.text(context).catch(() => ''),
         this.deps.profile.summary(task.user_id),
         this.deps.profile.get ? this.deps.profile.get(context).catch((): Record<string, unknown> => ({})) : Promise.resolve<Record<string, unknown>>({}),

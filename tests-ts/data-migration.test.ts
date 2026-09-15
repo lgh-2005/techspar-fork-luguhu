@@ -17,6 +17,7 @@ afterEach(async () => { while (roots.length) await rm(roots.pop()!, { recursive:
 const context = (userId: string): RequestContext => ({ requestId: 'test', userId, signal: new AbortController().signal })
 const users: UserRepository = {
   async findByEmail() { return undefined }, async findById(id) { return { id, email: 'user@example.com', name: '', is_admin: id === 'admin' } }, async create() { throw new Error() }, async updatePassword() {},
+  async list() { return [] }, async isActive() { return true }, async setDisabled() { return undefined }, async delete() { return false },
 }
 function service(base: string) {
   const data = join(base, 'data'); mkdirSync(data, { recursive: true }); const db = join(data, 'interviews.db'); const profiles = new FileCandidateProfileRepository(data)

@@ -63,6 +63,25 @@ export class BunUsageRepository implements UsageRepository {
     return row?.total || 0
   }
 
+  async summarizeByUser(): Promise<Array<{ userId: string; platformTokens: number; totalTokens: number }>> {
+    // 一次聚合出全部用户，避免管理员列表逐用户查询（N+1）。
+    const rows = this.sqlite.query<
+      { user_id: string; platform_tokens: number | null; total_tokens: number | null },
+      []
+    >(`
+      SELECT user_id,
+             SUM(CASE WHEN source = 'platform' THEN prompt_tokens + completion_tokens ELSE 0 END) AS platform_tokens,
+             SUM(prompt_tokens + completion_tokens) AS total_tokens
+      FROM llm_usage
+      GROUP BY user_id
+    `).all()
+    return rows.map((row) => ({
+      userId: row.user_id,
+      platformTokens: row.platform_tokens || 0,
+      totalTokens: row.total_tokens || 0,
+    }))
+  }
+
   close(): void {
     this.sqlite.close()
   }

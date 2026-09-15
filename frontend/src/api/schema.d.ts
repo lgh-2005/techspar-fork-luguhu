@@ -385,6 +385,8 @@ export interface paths {
                                 llm: boolean;
                                 embedding: boolean;
                             };
+                            /** @default [] */
+                            platform_services: ("dashscope_api_key" | "tavily_api_key" | "oss_access_key_id" | "oss_access_key_secret" | "oss_bucket" | "oss_endpoint")[];
                             /**
                              * @default user
                              * @enum {string}
@@ -515,6 +517,8 @@ export interface paths {
                             llm: boolean;
                             embedding: boolean;
                         };
+                        /** @default [] */
+                        platform_services?: ("dashscope_api_key" | "tavily_api_key" | "oss_access_key_id" | "oss_access_key_secret" | "oss_bucket" | "oss_endpoint")[];
                         /**
                          * @default user
                          * @enum {string}
@@ -3661,6 +3665,156 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description All accounts (administrators only) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            total: number;
+                            active: number;
+                            disabled: number;
+                            admins: number;
+                            users: {
+                                id: string;
+                                email: string;
+                                name: string;
+                                is_admin: boolean;
+                                disabled: boolean;
+                                /** @default  */
+                                created_at: string;
+                                /** @default 0 */
+                                platform_tokens: number;
+                                /** @default 0 */
+                                total_tokens: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted account */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            ok: true;
+                            deleted: string;
+                            /** @default true */
+                            files_removed: boolean;
+                        };
+                    };
+                };
+                /** @description Validation Error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HTTPValidationError"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    user_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        disabled?: boolean;
+                        new_password?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated account */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            email: string;
+                            name: string;
+                            is_admin: boolean;
+                            disabled: boolean;
+                            /** @default  */
+                            created_at: string;
+                        };
+                    };
+                };
+                /** @description Validation Error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HTTPValidationError"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
 }

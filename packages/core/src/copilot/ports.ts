@@ -2,6 +2,7 @@ import type { IdGenerator } from '../account/ports.ts'
 import type { CandidateProfilePort, PersistentTaskDispatcher } from '../interview/ports.ts'
 import type { TaskRecord } from '../interview/model.ts'
 import type { RequestContext } from '../kernel/context.ts'
+import type { PlatformProviderConfig } from '../provider/model.ts'
 import type { EmbeddingUseCases, ProviderSettingsRepository, TextGenerationUseCases } from '../provider/ports.ts'
 import type { ResumeUseCases } from '../resume/ports.ts'
 import type { VoiceRoleDetectionUseCases, VoiceRoleDetector } from '../voiceprint/ports.ts'
@@ -59,6 +60,8 @@ export type CopilotDependencies = {
   profile: CandidateProfilePort & { get?(context: RequestContext): Promise<Record<string, unknown>> }
   resume: ResumeUseCases
   settings: ProviderSettingsRepository
+  /** 部署方的服务兜底凭据。用户没填的服务项会从这里取。 */
+  platform: PlatformProviderConfig
   search: WebSearchDriver
   asr: RealtimeAsrFactory
   voiceprint?: VoiceRoleDetectionUseCases
