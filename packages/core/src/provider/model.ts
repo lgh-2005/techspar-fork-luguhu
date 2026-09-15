@@ -44,7 +44,7 @@ export type TrainingSettings = {
   divergence: number
 }
 
-export type SystemSettings = { allow_registration: boolean; platform?: SystemPlatformConfig }
+export type SystemSettings = { allow_registration: boolean; announcement?: string; platform?: SystemPlatformConfig }
 
 export type ProviderStatus = { llm: boolean; embedding: boolean }
 

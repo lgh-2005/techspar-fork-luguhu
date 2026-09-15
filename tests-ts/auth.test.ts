@@ -75,7 +75,7 @@ function testApp(allowRegistration = false) {
 describe('auth compatibility', () => {
   test('reports registration flag and service version', async () => {
     const { app } = testApp()
-    expect(await (await app.request('/api/auth/config')).json()).toEqual({ allow_registration: false })
+    expect(await (await app.request('/api/auth/config')).json()).toMatchObject({ allow_registration: false })
     expect(await (await app.request('/api/')).json()).toEqual({ service: 'TechSpar', version: rootPackage.version })
   })
 

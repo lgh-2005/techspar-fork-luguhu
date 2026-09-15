@@ -45,7 +45,7 @@ export function registerAuthRoutes(
       path: '/api/auth/config',
       responses: { 200: { content: { 'application/json': { schema: AuthConfigSchema } }, description: 'Registration configuration' } },
     }),
-    (c) => c.json({ allow_registration: deps.registration.allowRegistration }),
+    (c) => c.json({ allow_registration: deps.registration.allowRegistration, announcement: deps.registration.announcement || "" }),
   )
 
   app.openapi(

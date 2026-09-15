@@ -1,80 +1,121 @@
-import { useSyncExternalStore } from "react";
-import { Zap } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Megaphone, X } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-import { formatTokens, windowLabel } from "./api";
-import { getState, openPaywall, subscribe } from "./store";
+import { getSettings } from "@/api/interview";
 
 /**
- * 侧栏底部的额度条。
- *
- * 早先是右下角的悬浮角标,但那个角同时被 toast、移动端 FAB 和各页面的
- * sticky 底栏占着,必然互相压。挪进侧栏后彻底退出浮层争夺,顺带和下面的
- * "赞助项目"连成 额度 → 升级 的动线。
+ * 侧栏底部的“全站公告”板块（替换原本的本月额度条）。
+ * 支持管理员在全站服务配置中动态编辑，内容兼容 Markdown 格式。
  */
-export default function SidebarQuota({ collapsed }: { collapsed: boolean }) {
-  const { quota } = useSyncExternalStore(subscribe, getState);
+export default function SidebarAnnouncement({ collapsed }: { collapsed: boolean }) {
+  const [announcement, setAnnouncement] = useState<string>("");
+  const [modalOpen, setModalOpen] = useState(false);
 
-  // 自带 key 的用户不受平台额度约束;部署方没设上限时也没什么可显示的。
-  if (!quota || quota.source !== "platform" || quota.limit === null) return null;
+  useEffect(() => {
+    // 优先从 getSettings 获取，或兜底从 /api/auth/config 获取公开公告
+    getSettings()
+      .then((data: any) => {
+        if (data?.system?.announcement) {
+          setAnnouncement(data.system.announcement);
+        }
+      })
+      .catch(() => {
+        fetch("/api/auth/config")
+          .then((res) => res.json())
+          .then((cfg) => {
+            if (cfg?.announcement) setAnnouncement(cfg.announcement);
+          })
+          .catch(() => {});
+      });
+  }, []);
 
-  const ratio = quota.limit > 0 ? quota.used / quota.limit : 0;
-  const exhausted = quota.used >= quota.limit;
-  const low = ratio >= 0.8;
-  const tone = exhausted ? "text-red" : low ? "text-orange" : "text-dim";
-  const bar = exhausted ? "bg-red" : low ? "bg-orange" : "bg-primary";
+  const hasContent = Boolean(announcement && announcement.trim());
+  const displayPreview = hasContent
+    ? announcement.trim().split("\n")[0].replace(/[#*`>]/g, "").slice(0, 16)
+    : "暂无全站公告";
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={openPaywall}
-          className={cn(
-            "w-full py-2 rounded-lg text-[13px] transition-all hover:bg-hover",
-            tone,
-            exhausted || low ? "hover:brightness-110" : "hover:text-text",
-            collapsed && "flex justify-center"
-          )}
-        >
-          {collapsed ? (
-            <span className="relative">
-              <Zap size={18} />
-              {(exhausted || low) && (
-                <span className={cn("absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full", bar)} />
-              )}
-            </span>
-          ) : (
-            <>
-              <span className="flex items-center gap-2.5">
-                <Zap size={18} className="shrink-0" />
-                <span className="flex-1 text-left">{quota.unit === "token" ? windowLabel(quota.window) : "今日额度"}</span>
-                <span className="tabular-nums text-[12px]">
-                  {quota.unit === "token"
-                    ? formatTokens(Math.max(0, quota.limit - quota.used))
-                    : `${quota.used}/${quota.limit}`}
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className={cn(
+              "w-full py-2 px-2.5 rounded-lg text-[13px] transition-all border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/40 text-left",
+              collapsed && "flex justify-center px-0"
+            )}
+          >
+            {collapsed ? (
+              <span className="relative text-amber-500">
+                <Megaphone size={17} />
+                {hasContent && (
+                  <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                )}
+              </span>
+            ) : (
+              <div className="flex items-center gap-2 overflow-hidden">
+                <Megaphone size={15} className="shrink-0 text-amber-500" />
+                <span className="font-medium text-amber-500 text-xs shrink-0">公告</span>
+                <span className="text-[11px] text-muted-foreground truncate flex-1">
+                  {displayPreview}
                 </span>
-              </span>
-              <span className="mt-1.5 flex h-1 w-full overflow-hidden rounded-full bg-hover">
-                <span
-                  className={cn("h-full rounded-full transition-[width] duration-500", bar)}
-                  style={{ width: `${Math.min(100, ratio * 100)}%` }}
-                />
-              </span>
-            </>
-          )}
-        </button>
-      </TooltipTrigger>
-      {collapsed && (
-        <TooltipContent side="right" sideOffset={8}>
-          {quota.unit === "token"
-            ? `${windowLabel(quota.window)} 剩余 ${formatTokens(Math.max(0, quota.limit - quota.used))} / ${formatTokens(quota.limit)} tokens`
-            : `今日免费额度 ${quota.used}/${quota.limit}`}
-          {exhausted && " · 已用完"}
+              </div>
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8} className="max-w-[240px] text-xs">
+          {hasContent ? "点击查看详细公告" : "暂无全站公告"}
         </TooltipContent>
+      </Tooltip>
+
+      {/* 公告 Markdown 弹窗详情 */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                <Megaphone className="w-4 h-4 text-amber-500" />
+                <h3 className="text-sm font-semibold text-foreground">全站公告</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground rounded p-1"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-3.5 max-h-[60vh] overflow-y-auto text-xs text-foreground leading-relaxed prose prose-sm dark:prose-invert prose-p:my-1.5 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5">
+              {hasContent ? (
+                <ReactMarkdown>{announcement}</ReactMarkdown>
+              ) : (
+                <p className="text-muted-foreground italic py-6 text-center">暂无全站公告内容。</p>
+              )}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-border/40 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="px-3.5 py-1.5 bg-muted text-foreground text-xs rounded-md hover:bg-muted/80"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-    </Tooltip>
+    </>
   );
 }

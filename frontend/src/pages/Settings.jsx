@@ -40,6 +40,7 @@ import AfdianIcon from "../components/AfdianIcon";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -725,6 +726,7 @@ export default function Settings() {
     try {
       const payload = {
         allow_registration: allowRegistration,
+        announcement: adminPlatform.announcement,
         platform: {
           llm: {
             api_base: adminPlatform.llm_api_base,
@@ -1838,6 +1840,30 @@ export default function Settings() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* 全站公告 (Markdown 格式) */}
+              <Card className="border border-border/60 bg-background/50 md:col-span-2">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center justify-between">
+                    <span>全站公告 (展示在左侧栏底部，支持 Markdown)</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {adminPlatform.announcement ? "已发布" : "空"}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Textarea
+                    value={adminPlatform.announcement}
+                    onChange={(e) => setAdminPlatform((p) => ({ ...p, announcement: e.target.value }))}
+                    placeholder="在这里输入面向全站用户的公告内容，支持 Markdown 语法（如 # 标题、* 列表、**粗体**、链接等）..."
+                    rows={4}
+                    className="text-xs font-mono resize-y"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    所有用户登录后点击侧栏左下角的「公告」即可弹窗阅读渲染后的 Markdown 内容。
+                  </p>
+                </CardContent>
+              </Card>
+
               {/* LLM 平台配置 */}
               <Card className="border border-border/60 bg-background/50">
                 <CardHeader className="pb-3">

@@ -55,4 +55,5 @@ export interface UserAdminUseCases {
 
 export type AuthPolicy = {
   allowRegistration: boolean
+  announcement?: string
 }

@@ -38,6 +38,7 @@ export const AuthResponseSchema = z.object({
 
 export const AuthConfigSchema = z.object({
   allow_registration: z.boolean(),
+  announcement: z.string().default(''),
 })
 
 /** 管理员视角下的一个账号。created_at 可能为空串——上游把该列的默认值写成了字面量。 */

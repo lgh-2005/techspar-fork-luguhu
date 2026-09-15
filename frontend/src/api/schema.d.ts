@@ -121,6 +121,8 @@ export interface paths {
                     content: {
                         "application/json": {
                             allow_registration: boolean;
+                            /** @default  */
+                            announcement: string;
                         };
                     };
                 };

@@ -66,7 +66,7 @@ const usageRepository = new BunUsageRepository(config.dbPath)
 usageRepository.initialize()
 const settingsRepository = new FileProviderSettingsRepository(config.dataDir)
 const persistedSystem = await settingsRepository.loadSystem()
-const registration = { allowRegistration: persistedSystem?.allow_registration ?? config.allowRegistration }
+const registration = { allowRegistration: persistedSystem?.allow_registration ?? config.allowRegistration, announcement: persistedSystem?.announcement || "" }
 // 包一层即时吊销:JWT 有效 7 天且无法撤回,不查账号状态的话「停用/删除」要等它自然
 // 过期才生效。所有带凭证的请求都经过 decode,所以这一层能覆盖全部路由。
 const tokens = new RevocableTokenService(new JoseTokenService(config.jwtSecret), users)

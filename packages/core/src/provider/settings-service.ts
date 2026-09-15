@@ -51,6 +51,7 @@ export class SettingsService implements SettingsUseCases {
       services: stored.services || emptyServiceSettings(),
       system: {
         allow_registration: this.registration.allowRegistration,
+        announcement: this.registration.announcement || "",
         platform: user?.is_admin ? {
           llm: { api_base: this.platform.llm?.api_base || '', model: this.platform.llm?.model || '', compatibility: this.platform.llm?.compatibility, api_key: this.platform.llm?.api_key ? '***' : '' },
           embedding: { api_base: this.platform.embedding?.api_base || '', api_model: this.platform.embedding?.api_model || '', api_key: this.platform.embedding?.api_key ? '***' : '' },
@@ -92,6 +93,7 @@ export class SettingsService implements SettingsUseCases {
     if (user?.is_admin) {
       await this.repository.saveSystem(value.system)
       this.registration.allowRegistration = value.system.allow_registration
+      this.registration.announcement = value.system.announcement || ""
       if (value.system.platform) {
         if (value.system.platform.llm) {
           this.platform.llm = { ...this.platform.llm, ...value.system.platform.llm }
