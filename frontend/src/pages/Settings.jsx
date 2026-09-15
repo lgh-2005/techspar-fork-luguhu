@@ -262,6 +262,7 @@ export default function Settings() {
   const accountRef = useRef(null);
   const usersRef = useRef(null);
   const migrationRef = useRef(null);
+  const adminServicesRef = useRef(null);
   const sectionRefs = {
     llm: llmRef,
     embedding: embeddingRef,
@@ -273,7 +274,6 @@ export default function Settings() {
     migration: migrationRef,
     admin_services: adminServicesRef,
   };
-  const adminServicesRef = useRef(null);
   const scrollSpyLock = useRef(false);
   const scrollSpyUnlockTimer = useRef(null);
 
