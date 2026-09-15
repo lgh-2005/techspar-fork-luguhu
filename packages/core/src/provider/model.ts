@@ -44,9 +44,7 @@ export type TrainingSettings = {
   divergence: number
 }
 
-export type SystemSettings = {
-  allow_registration: boolean
-}
+export type SystemSettings = { allow_registration: boolean; platform?: SystemPlatformConfig }
 
 export type ProviderStatus = { llm: boolean; embedding: boolean }
 
@@ -110,4 +108,12 @@ export type PlatformProviderConfig = {
   tokenLimit: number
   /** token 上限的计量窗口。按天算,一个白嫖用户一年能烧掉几十块;按月封顶才可控 */
   tokenWindow: 'day' | 'month'
+}
+
+export type SystemPlatformConfig = {
+  llm?: Pick<LlmSettings, 'api_base' | 'api_key' | 'model'> & { compatibility?: LlmCompatibility }
+  embedding?: Pick<EmbeddingSettings, 'api_base' | 'api_key' | 'api_model'>
+  services?: Partial<ServiceSettings>
+  token_limit?: number
+  token_window?: 'day' | 'month'
 }

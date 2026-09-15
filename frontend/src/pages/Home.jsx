@@ -55,7 +55,155 @@ const MODE_CARDS = [
   },
 ];
 
+// 交互式新手通关向导
+const GUIDE_STEPS = [
+  {
+    id: "resume",
+    title: "1. 上传专属简历 (必做)",
+    desc: "在简历管理中上传真实个人 PDF 简历，系统提炼个人能力图谱",
+    target: "/resumes",
+    btnText: "去上传简历",
+  },
+  {
+    id: "jd",
+    title: "2. 选定目标职位 JD",
+    desc: "粘贴目标企业或意向岗位的 JD 描述，AI 拆解核心要求与考点",
+    target: "/job-prep",
+    btnText: "去配置 JD",
+  },
+  {
+    id: "interview",
+    title: "3. 跑通一轮模拟面试",
+    desc: "体验 AI 深度针对性提问，体验从项目深挖到技术追问的真实答辩",
+    target: "/resume-interview",
+    btnText: "开始模拟面试",
+  },
+  {
+    id: "review",
+    title: "4. 复盘面试报告与雷达",
+    desc: "面试结束后查看复盘诊断、薄弱点雷达及长期能力画像成长池",
+    target: "/history",
+    btnText: "查看历史复盘",
+  },
+  {
+    id: "voiceprint",
+    title: "5. (进阶) 录制个人声纹",
+    desc: "在设置中录入 6 秒本人生理声纹，解锁 Copilot 实时只听自己声音",
+    target: "/settings#voiceprint",
+    btnText: "录制专属声纹",
+  },
+];
+
+function OnboardingGuide({ onDismiss }) {
+  const navigate = useNavigate();
+  const [completed, setCompleted] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("techspar_guide_completed") || "{}");
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleStep = (id, e) => {
+    e.stopPropagation();
+    const updated = { ...completed, [id]: !completed[id] };
+    setCompleted(updated);
+    localStorage.setItem("techspar_guide_completed", JSON.stringify(updated));
+  };
+
+  const doneCount = GUIDE_STEPS.filter((s) => completed[s.id]).length;
+  const progressPercent = Math.round((doneCount / GUIDE_STEPS.length) * 100);
+
+  return (
+    <Card className="border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-background to-background/50 backdrop-blur-sm shadow-sm overflow-hidden mb-6">
+      <CardContent className="p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-400 animate-pulse" />
+              <h3 className="font-semibold text-foreground text-base">新用户通关指引手册</h3>
+              <Badge variant="outline" className="text-amber-400 border-amber-500/30 text-xs">
+                进度: {doneCount}/{GUIDE_STEPS.length} ({progressPercent}%)
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              完成以下 5 个关键小步骤，立即解锁完整的 AI 面试与能力成长闭环。点击小方块可手动标记进度。
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDismiss}
+            className="text-xs text-muted-foreground hover:text-foreground self-end sm:self-auto"
+          >
+            暂时收起
+          </Button>
+        </div>
+
+        {/* 进度条 */}
+        <div className="w-full bg-muted/50 rounded-full h-1.5 mb-4 overflow-hidden">
+          <div
+            className="bg-amber-500 h-full transition-all duration-300 rounded-full"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+
+        {/* 步骤卡片列表 */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          {GUIDE_STEPS.map((step) => {
+            const isDone = Boolean(completed[step.id]);
+            return (
+              <div
+                key={step.id}
+                className={cn(
+                  "p-3 rounded-lg border transition-all flex flex-col justify-between text-left",
+                  isDone
+                    ? "bg-muted/40 border-border/40 opacity-75"
+                    : "bg-background/80 border-border hover:border-amber-500/40 shadow-xs"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className={cn("text-xs font-medium", isDone ? "line-through text-muted-foreground" : "text-foreground")}>
+                      {step.title}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => toggleStep(step.id, e)}
+                      className={cn(
+                        "w-4 h-4 rounded border flex items-center justify-center text-[10px] transition-colors cursor-pointer",
+                        isDone
+                          ? "bg-emerald-500 border-emerald-500 text-white"
+                          : "border-muted-foreground/40 hover:border-amber-500"
+                      )}
+                      title="标记此步骤"
+                    >
+                      {isDone && "✓"}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {step.desc}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full text-[11px] h-7 border-amber-500/20 hover:bg-amber-500/10 text-foreground"
+                  onClick={() => navigate(step.target)}
+                >
+                  {step.btnText} →
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Home() {
+  const [showGuide, setShowGuide] = useState(() => localStorage.getItem('techspar_hide_guide') !== '1');
   const navigate = useNavigate();
   const [mode, setMode] = useState(null);
   const [profile, setProfile] = useState(null);

@@ -77,17 +77,26 @@ const auth = new AuthService(
   ids,
   registration,
 )
+const sysPlat = persistedSystem?.platform
 const platform: PlatformProviderConfig = {
-  llm: { api_base: config.platformLlmApiBase, api_key: config.platformLlmApiKey, model: config.platformLlmModel },
-  embedding: {
-    api_base: config.platformEmbeddingApiBase,
-    api_key: config.platformEmbeddingApiKey,
-    api_model: config.platformEmbeddingModel,
+  llm: {
+    api_base: sysPlat?.llm?.api_base || config.platformLlmApiBase,
+    api_key: sysPlat?.llm?.api_key || config.platformLlmApiKey,
+    model: sysPlat?.llm?.model || config.platformLlmModel,
+    compatibility: sysPlat?.llm?.compatibility,
   },
-  services: config.platformServices,
+  embedding: {
+    api_base: sysPlat?.embedding?.api_base || config.platformEmbeddingApiBase,
+    api_key: sysPlat?.embedding?.api_key || config.platformEmbeddingApiKey,
+    api_model: sysPlat?.embedding?.api_model || config.platformEmbeddingModel,
+  },
+  services: {
+    ...config.platformServices,
+    ...(sysPlat?.services || {}),
+  },
   dailyCallLimit: config.platformDailyCallLimit,
-  tokenLimit: config.platformTokenLimit,
-  tokenWindow: config.platformTokenWindow,
+  tokenLimit: typeof sysPlat?.token_limit === 'number' ? sysPlat.token_limit : config.platformTokenLimit,
+  tokenWindow: sysPlat?.token_window || config.platformTokenWindow,
 }
 const extensions = await loadExtensions(process.env.TECHSPAR_EXTENSIONS)
 const extensionContext = { dbPath: config.dbPath, tokens }

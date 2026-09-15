@@ -49,7 +49,23 @@ export class SettingsService implements SettingsUseCases {
       llm,
       embedding,
       services: stored.services || emptyServiceSettings(),
-      system: { allow_registration: this.registration.allowRegistration },
+      system: {
+        allow_registration: this.registration.allowRegistration,
+        platform: user?.is_admin ? {
+          llm: { api_base: this.platform.llm?.api_base || '', model: this.platform.llm?.model || '', compatibility: this.platform.llm?.compatibility, api_key: this.platform.llm?.api_key ? '***' : '' },
+          embedding: { api_base: this.platform.embedding?.api_base || '', api_model: this.platform.embedding?.api_model || '', api_key: this.platform.embedding?.api_key ? '***' : '' },
+          services: {
+            dashscope_api_key: this.platform.services?.dashscope_api_key ? '***' : '',
+            tavily_api_key: this.platform.services?.tavily_api_key ? '***' : '',
+            oss_access_key_id: this.platform.services?.oss_access_key_id ? '***' : '',
+            oss_access_key_secret: this.platform.services?.oss_access_key_secret ? '***' : '',
+            oss_bucket: this.platform.services?.oss_bucket || '',
+            oss_endpoint: this.platform.services?.oss_endpoint || '',
+          },
+          token_limit: this.platform.tokenLimit,
+          token_window: this.platform.tokenWindow,
+        } : undefined,
+      },
       training: training || defaultTrainingSettings(),
       is_admin: user?.is_admin || false,
       configured: {
@@ -76,6 +92,23 @@ export class SettingsService implements SettingsUseCases {
     if (user?.is_admin) {
       await this.repository.saveSystem(value.system)
       this.registration.allowRegistration = value.system.allow_registration
+      if (value.system.platform) {
+        if (value.system.platform.llm) {
+          this.platform.llm = { ...this.platform.llm, ...value.system.platform.llm }
+        }
+        if (value.system.platform.embedding) {
+          this.platform.embedding = { ...this.platform.embedding, ...value.system.platform.embedding }
+        }
+        if (value.system.platform.services) {
+          this.platform.services = { ...this.platform.services, ...value.system.platform.services }
+        }
+        if (typeof value.system.platform.token_limit === 'number') {
+          this.platform.tokenLimit = value.system.platform.token_limit
+        }
+        if (value.system.platform.token_window) {
+          this.platform.tokenWindow = value.system.platform.token_window
+        }
+      }
     }
     await this.repository.saveTraining(userId, value.training)
     return { ok: true, embedding_changed: embeddingChanged }

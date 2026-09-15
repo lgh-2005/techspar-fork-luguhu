@@ -255,7 +255,9 @@ export default function Settings() {
     account: accountRef,
     users: usersRef,
     migration: migrationRef,
+    admin_services: adminServicesRef,
   };
+  const adminServicesRef = useRef(null);
   const scrollSpyLock = useRef(false);
   const scrollSpyUnlockTimer = useRef(null);
 
@@ -807,6 +809,7 @@ export default function Settings() {
     { id: "training", label: "训练参数", icon: Sliders },
     { id: "account", label: "账户", icon: UserCog },
     { id: "users", label: "用户管理", icon: Users },
+    { id: "admin_services", label: "全站服务(管理员)", icon: Boxes },
     { id: "migration", label: "数据迁移", icon: Database },
   ];
 
@@ -1709,6 +1712,252 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
+        )}
+
+                {/* Admin Global Services Configuration */}
+        {isAdmin && (
+          <div
+            ref={adminServicesRef}
+            data-tab-id="admin_services"
+            className="space-y-6 pt-6 border-t border-border/40"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Boxes className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-semibold text-foreground">全站公共服务配置 (管理员专属)</h3>
+                <Badge variant="outline" className="text-amber-500 border-amber-500/30 text-xs">
+                  全局共享生效
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                配置平台默认公共凭据。普通用户注册后免配直接使用；若用户在个人设置中填了自己的 Key 则优先走个人。
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* LLM 平台配置 */}
+              <Card className="border border-border/60 bg-background/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center justify-between">
+                    <span>全局 LLM 对话模型</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {settings?.system?.platform?.llm?.model ? "已配置" : "空"}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">API Base URL</label>
+                    <Input
+                      value={settings?.system?.platform?.llm?.api_base || ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          system: {
+                            ...prev.system,
+                            platform: {
+                              ...prev.system?.platform,
+                              llm: { ...prev.system?.platform?.llm, api_base: e.target.value },
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="https://api.openai.com/v1"
+                      className="text-xs h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Model ID</label>
+                    <Input
+                      value={settings?.system?.platform?.llm?.model || ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          system: {
+                            ...prev.system,
+                            platform: {
+                              ...prev.system?.platform,
+                              llm: { ...prev.system?.platform?.llm, model: e.target.value },
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="gpt-4o / gpt-5.6-sol"
+                      className="text-xs h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">API Key (留空保留已有密钥)</label>
+                    <Input
+                      type="password"
+                      value={settings?.system?.platform?.llm?.api_key || ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          system: {
+                            ...prev.system,
+                            platform: {
+                              ...prev.system?.platform,
+                              llm: { ...prev.system?.platform?.llm, api_key: e.target.value },
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="sk-..."
+                      className="text-xs h-8"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Embedding 平台配置 */}
+              <Card className="border border-border/60 bg-background/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center justify-between">
+                    <span>全局 Embedding 向量模型</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {settings?.system?.platform?.embedding?.api_model ? "已配置" : "空"}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Embedding API Base</label>
+                    <Input
+                      value={settings?.system?.platform?.embedding?.api_base || ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          system: {
+                            ...prev.system,
+                            platform: {
+                              ...prev.system?.platform,
+                              embedding: { ...prev.system?.platform?.embedding, api_base: e.target.value },
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="https://api.siliconflow.cn/v1"
+                      className="text-xs h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Model ID</label>
+                    <Input
+                      value={settings?.system?.platform?.embedding?.api_model || ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          system: {
+                            ...prev.system,
+                            platform: {
+                              ...prev.system?.platform,
+                              embedding: { ...prev.system?.platform?.embedding, api_model: e.target.value },
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="Qwen/Qwen3-Embedding-8B"
+                      className="text-xs h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">API Key</label>
+                    <Input
+                      type="password"
+                      value={settings?.system?.platform?.embedding?.api_key || ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          system: {
+                            ...prev.system,
+                            platform: {
+                              ...prev.system?.platform,
+                              embedding: { ...prev.system?.platform?.embedding, api_key: e.target.value },
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="sk-..."
+                      className="text-xs h-8"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Tavily 搜索配置 */}
+              <Card className="border border-border/60 bg-background/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center justify-between">
+                    <span>全局 Tavily 公司联网搜索</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {settings?.system?.platform?.services?.tavily_api_key ? "已配置" : "空"}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Tavily API Key</label>
+                    <Input
+                      type="password"
+                      value={settings?.system?.platform?.services?.tavily_api_key || ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          system: {
+                            ...prev.system,
+                            platform: {
+                              ...prev.system?.platform,
+                              services: { ...prev.system?.platform?.services, tavily_api_key: e.target.value },
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="tvly-..."
+                      className="text-xs h-8"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">供 Copilot 在面试前检索目标公司真实面经与背景。</p>
+                </CardContent>
+              </Card>
+
+              {/* DashScope 语音识别 */}
+              <Card className="border border-border/60 bg-background/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center justify-between">
+                    <span>全局 DashScope 语音转写</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {settings?.system?.platform?.services?.dashscope_api_key ? "已配置" : "空"}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">DashScope API Key</label>
+                    <Input
+                      type="password"
+                      value={settings?.system?.platform?.services?.dashscope_api_key || ""}
+                      onChange={(e) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          system: {
+                            ...prev.system,
+                            platform: {
+                              ...prev.system?.platform,
+                              services: { ...prev.system?.platform?.services, dashscope_api_key: e.target.value },
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="sk-..."
+                      className="text-xs h-8"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">解锁全站录音回答与 Copilot 实时语音字幕。</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         )}
 
         {/* Data Migration */}

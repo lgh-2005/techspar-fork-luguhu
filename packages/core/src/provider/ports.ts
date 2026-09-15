@@ -7,6 +7,7 @@ import type {
   ServiceSettings,
   SettingsView,
   TrainingSettings,
+  SystemSettings,
   ProviderSource,
 } from './model.ts'
 
@@ -47,8 +48,8 @@ export interface ProviderSettingsRepository {
   saveTraining(userId: string, value: TrainingSettings): Promise<void>
   loadLastReindexAt(userId: string): Promise<string>
   saveLastReindexAt(userId: string, value: string): Promise<void>
-  loadSystem(): Promise<{ allow_registration: boolean } | undefined>
-  saveSystem(value: { allow_registration: boolean }): Promise<void>
+  loadSystem(): Promise<SystemSettings | undefined>
+  saveSystem(value: SystemSettings): Promise<void>
 }
 
 export interface VectorIndexControl {

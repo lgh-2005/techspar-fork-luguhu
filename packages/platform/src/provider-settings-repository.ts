@@ -6,6 +6,7 @@ import {
   normalizeEmbeddingSettings,
   type ProviderSettingsRepository,
   type StoredProviderSettings,
+  type SystemSettings,
   type TrainingSettings,
 } from '@techspar/core'
 
@@ -81,11 +82,11 @@ export class FileProviderSettingsRepository implements ProviderSettingsRepositor
     await atomicWriteJson(join(this.userDir(userId), 'index_meta.json'), { last_rebuild_at: value })
   }
 
-  async loadSystem(): Promise<{ allow_registration: boolean } | undefined> {
+  async loadSystem(): Promise<SystemSettings | undefined> {
     return readJson(join(this.dataDir, 'system_settings.json'))
   }
 
-  async saveSystem(value: { allow_registration: boolean }): Promise<void> {
+  async saveSystem(value: SystemSettings): Promise<void> {
     await atomicWriteJson(join(this.dataDir, 'system_settings.json'), value)
   }
 }

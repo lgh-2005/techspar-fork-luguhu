@@ -157,7 +157,7 @@ describe('settings persistence', () => {
     await service.update(context, current)
 
     expect(registration.allowRegistration).toBe(true)
-    expect(JSON.parse(await readFile(join(root, 'data', 'system_settings.json'), 'utf8'))).toEqual({ allow_registration: true })
+    expect(JSON.parse(await readFile(join(root, 'data', 'system_settings.json'), 'utf8'))).toMatchObject({ allow_registration: true })
     expect((await repository.loadProvider('admin')).embedding?.api_base).toBe('https://example.test/v1')
   })
 
