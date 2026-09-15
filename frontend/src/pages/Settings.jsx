@@ -41,7 +41,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { isDesktopApp } from "@/lib/desktop";
 
 // 录音参数
@@ -197,7 +198,22 @@ export default function Settings() {
 
   // 账户/系统配置（全局，仅 admin 可见）
   const [allowRegistration, setAllowRegistration] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
+  // 管理员全站公共服务配置状态
+  const [adminPlatform, setAdminPlatform] = useState({
+    llm_api_base: "",
+    llm_model: "",
+    llm_api_key: "",
+    llm_compat: "generic",
+    emb_api_base: "",
+    emb_api_model: "",
+    emb_api_key: "",
+    tavily_key: "",
+    dashscope_key: "",
+  });
+  const [adminPlatformSaving, setAdminPlatformSaving] = useState(false);
+  const [adminPlatformSaved, setAdminPlatformSaved] = useState(false);
+  const [adminPlatformMsg, setAdminPlatformMsg] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -385,7 +401,21 @@ export default function Settings() {
         setOssBucket(svc.oss_bucket || "");
         setOssEndpoint(svc.oss_endpoint || "");
         setAllowRegistration(Boolean(data.system?.allow_registration));
-        setIsAdmin(Boolean(data.is_admin));
+                setIsAdmin(Boolean(data.is_admin));
+        if (data.system?.platform) {
+          const p = data.system.platform;
+          setAdminPlatform({
+            llm_api_base: p.llm?.api_base || "",
+            llm_model: p.llm?.model || "",
+            llm_api_key: "",
+            llm_compat: p.llm?.compatibility || "generic",
+            emb_api_base: p.embedding?.api_base || "",
+            emb_api_model: p.embedding?.api_model || "",
+            emb_api_key: "",
+            tavily_key: "",
+            dashscope_key: "",
+          });
+        }
         setPlatformServiceFields(Array.isArray(data.platform_services) ? data.platform_services : []);
         setLastReindexAt(data.last_reindex_at || "");
         setNumQuestions(data.training.num_questions ?? 10);
@@ -688,6 +718,64 @@ export default function Settings() {
   // 选了平台就把自己的那一片停掉:不只是看着灰,而是真的填不进去——
   // 禁用的输入框浏览器也不会往里自动填。
   const ownLlmDisabled = llmSource === "platform";
+
+    const handleSaveAdminPlatform = async () => {
+    setAdminPlatformSaving(true);
+    setAdminPlatformMsg("");
+    try {
+      const payload = {
+        allow_registration: allowRegistration,
+        platform: {
+          llm: {
+            api_base: adminPlatform.llm_api_base,
+            model: adminPlatform.llm_model,
+            compatibility: adminPlatform.llm_compat,
+            ...(adminPlatform.llm_api_key.trim() ? { api_key: adminPlatform.llm_api_key.trim() } : {}),
+          },
+          embedding: {
+            api_base: adminPlatform.emb_api_base,
+            api_model: adminPlatform.emb_api_model,
+            ...(adminPlatform.emb_api_key.trim() ? { api_key: adminPlatform.emb_api_key.trim() } : {}),
+          },
+          services: {
+            ...(adminPlatform.tavily_key.trim() ? { tavily_api_key: adminPlatform.tavily_key.trim() } : {}),
+            ...(adminPlatform.dashscope_key.trim() ? { dashscope_api_key: adminPlatform.dashscope_key.trim() } : {}),
+          },
+        },
+      };
+
+      await updateSettings({
+        llm: { api_base: apiBase, api_key: apiKey, model, compatibility, temperature, use_platform: usePlatform },
+        embedding: {
+          backend: embBackend,
+          api_base: embApiBase,
+          api_key: embApiKey,
+          api_model: embApiModel,
+          api_batch_size: embApiBatchSize,
+          local_model: embLocalModel,
+          local_path: embLocalPath,
+        },
+        services: {
+          dashscope_api_key: dashscopeKey,
+          tavily_api_key: tavilyKey,
+          oss_access_key_id: ossKeyId,
+          oss_access_key_secret: ossKeySecret,
+          oss_bucket: ossBucket,
+          oss_endpoint: ossEndpoint,
+        },
+        system: payload,
+        training: { num_questions: numQuestions, divergence },
+      });
+
+      setAdminPlatformSaved(true);
+      setAdminPlatformMsg("全站公共服务配置已成功保存并立即生效！");
+      setTimeout(() => setAdminPlatformSaved(false), 3000);
+    } catch (err) {
+      setAdminPlatformMsg("保存失败: " + (err.message || "未知错误"));
+    } finally {
+      setAdminPlatformSaving(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -1719,20 +1807,35 @@ export default function Settings() {
           <div
             ref={adminServicesRef}
             data-tab-id="admin_services"
-            className="space-y-6 pt-6 border-t border-border/40"
+            className="space-y-6 pt-6 border-t border-border/40 scroll-mt-4"
           >
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Boxes className="w-5 h-5 text-amber-500" />
-                <h3 className="text-base font-semibold text-foreground">全站公共服务配置 (管理员专属)</h3>
-                <Badge variant="outline" className="text-amber-500 border-amber-500/30 text-xs">
-                  全局共享生效
-                </Badge>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Boxes className="w-5 h-5 text-amber-500" />
+                  <h3 className="text-base font-semibold text-foreground">全站公共服务配置 (管理员专属)</h3>
+                  <Badge variant="outline" className="text-amber-500 border-amber-500/30 text-xs">
+                    全局热生效
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  在这里配置的公共模型与凭据将全站共享生效。普通用户注册后直接拥有可用服务，无需填写 Key。
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                配置平台默认公共凭据。普通用户注册后免配直接使用；若用户在个人设置中填了自己的 Key 则优先走个人。
-              </p>
+              <Button
+                onClick={handleSaveAdminPlatform}
+                disabled={adminPlatformSaving}
+                className="bg-amber-600 hover:bg-amber-500 text-white text-xs h-8 px-4 shrink-0"
+              >
+                {adminPlatformSaving ? "保存中..." : adminPlatformSaved ? "已保存 ✓" : "保存全站配置"}
+              </Button>
             </div>
+
+            {adminPlatformMsg && (
+              <div className={cn("text-xs p-2.5 rounded-md", adminPlatformMsg.includes("失败") ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-500")}>
+                {adminPlatformMsg}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* LLM 平台配置 */}
@@ -1741,7 +1844,7 @@ export default function Settings() {
                   <CardTitle className="text-sm font-medium flex items-center justify-between">
                     <span>全局 LLM 对话模型</span>
                     <Badge variant="secondary" className="text-[10px]">
-                      {settings?.system?.platform?.llm?.model ? "已配置" : "空"}
+                      {adminPlatform.llm_model ? "已配置" : "系统默认"}
                     </Badge>
                   </CardTitle>
                 </CardHeader>
@@ -1749,19 +1852,8 @@ export default function Settings() {
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">API Base URL</label>
                     <Input
-                      value={settings?.system?.platform?.llm?.api_base || ""}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          system: {
-                            ...prev.system,
-                            platform: {
-                              ...prev.system?.platform,
-                              llm: { ...prev.system?.platform?.llm, api_base: e.target.value },
-                            },
-                          },
-                        }))
-                      }
+                      value={adminPlatform.llm_api_base}
+                      onChange={(e) => setAdminPlatform((p) => ({ ...p, llm_api_base: e.target.value }))}
                       placeholder="https://api.openai.com/v1"
                       className="text-xs h-8"
                     />
@@ -1769,40 +1861,18 @@ export default function Settings() {
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Model ID</label>
                     <Input
-                      value={settings?.system?.platform?.llm?.model || ""}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          system: {
-                            ...prev.system,
-                            platform: {
-                              ...prev.system?.platform,
-                              llm: { ...prev.system?.platform?.llm, model: e.target.value },
-                            },
-                          },
-                        }))
-                      }
+                      value={adminPlatform.llm_model}
+                      onChange={(e) => setAdminPlatform((p) => ({ ...p, llm_model: e.target.value }))}
                       placeholder="gpt-4o / gpt-5.6-sol"
                       className="text-xs h-8"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">API Key (留空保留已有密钥)</label>
+                    <label className="text-xs text-muted-foreground">API Key (留空保留现有密钥)</label>
                     <Input
                       type="password"
-                      value={settings?.system?.platform?.llm?.api_key || ""}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          system: {
-                            ...prev.system,
-                            platform: {
-                              ...prev.system?.platform,
-                              llm: { ...prev.system?.platform?.llm, api_key: e.target.value },
-                            },
-                          },
-                        }))
-                      }
+                      value={adminPlatform.llm_api_key}
+                      onChange={(e) => setAdminPlatform((p) => ({ ...p, llm_api_key: e.target.value }))}
                       placeholder="sk-..."
                       className="text-xs h-8"
                     />
@@ -1816,7 +1886,7 @@ export default function Settings() {
                   <CardTitle className="text-sm font-medium flex items-center justify-between">
                     <span>全局 Embedding 向量模型</span>
                     <Badge variant="secondary" className="text-[10px]">
-                      {settings?.system?.platform?.embedding?.api_model ? "已配置" : "空"}
+                      {adminPlatform.emb_api_model ? "已配置" : "系统默认"}
                     </Badge>
                   </CardTitle>
                 </CardHeader>
@@ -1824,19 +1894,8 @@ export default function Settings() {
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Embedding API Base</label>
                     <Input
-                      value={settings?.system?.platform?.embedding?.api_base || ""}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          system: {
-                            ...prev.system,
-                            platform: {
-                              ...prev.system?.platform,
-                              embedding: { ...prev.system?.platform?.embedding, api_base: e.target.value },
-                            },
-                          },
-                        }))
-                      }
+                      value={adminPlatform.emb_api_base}
+                      onChange={(e) => setAdminPlatform((p) => ({ ...p, emb_api_base: e.target.value }))}
                       placeholder="https://api.siliconflow.cn/v1"
                       className="text-xs h-8"
                     />
@@ -1844,40 +1903,18 @@ export default function Settings() {
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Model ID</label>
                     <Input
-                      value={settings?.system?.platform?.embedding?.api_model || ""}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          system: {
-                            ...prev.system,
-                            platform: {
-                              ...prev.system?.platform,
-                              embedding: { ...prev.system?.platform?.embedding, api_model: e.target.value },
-                            },
-                          },
-                        }))
-                      }
+                      value={adminPlatform.emb_api_model}
+                      onChange={(e) => setAdminPlatform((p) => ({ ...p, emb_api_model: e.target.value }))}
                       placeholder="Qwen/Qwen3-Embedding-8B"
                       className="text-xs h-8"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">API Key</label>
+                    <label className="text-xs text-muted-foreground">API Key (留空保留现有密钥)</label>
                     <Input
                       type="password"
-                      value={settings?.system?.platform?.embedding?.api_key || ""}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          system: {
-                            ...prev.system,
-                            platform: {
-                              ...prev.system?.platform,
-                              embedding: { ...prev.system?.platform?.embedding, api_key: e.target.value },
-                            },
-                          },
-                        }))
-                      }
+                      value={adminPlatform.emb_api_key}
+                      onChange={(e) => setAdminPlatform((p) => ({ ...p, emb_api_key: e.target.value }))}
                       placeholder="sk-..."
                       className="text-xs h-8"
                     />
@@ -1888,72 +1925,44 @@ export default function Settings() {
               {/* Tavily 搜索配置 */}
               <Card className="border border-border/60 bg-background/50">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center justify-between">
-                    <span>全局 Tavily 公司联网搜索</span>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {settings?.system?.platform?.services?.tavily_api_key ? "已配置" : "空"}
-                    </Badge>
-                  </CardTitle>
+                  <CardTitle className="text-sm font-medium">全局 Tavily 公司联网搜索</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Tavily API Key</label>
+                    <label className="text-xs text-muted-foreground">Tavily API Key (留空保留现有密钥)</label>
                     <Input
                       type="password"
-                      value={settings?.system?.platform?.services?.tavily_api_key || ""}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          system: {
-                            ...prev.system,
-                            platform: {
-                              ...prev.system?.platform,
-                              services: { ...prev.system?.platform?.services, tavily_api_key: e.target.value },
-                            },
-                          },
-                        }))
-                      }
+                      value={adminPlatform.tavily_key}
+                      onChange={(e) => setAdminPlatform((p) => ({ ...p, tavily_key: e.target.value }))}
                       placeholder="tvly-..."
                       className="text-xs h-8"
                     />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">供 Copilot 在面试前检索目标公司真实面经与背景。</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    用于 Copilot 备面时抓取目标企业公开资料与真题面经。
+                  </p>
                 </CardContent>
               </Card>
 
               {/* DashScope 语音识别 */}
               <Card className="border border-border/60 bg-background/50">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center justify-between">
-                    <span>全局 DashScope 语音转写</span>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {settings?.system?.platform?.services?.dashscope_api_key ? "已配置" : "空"}
-                    </Badge>
-                  </CardTitle>
+                  <CardTitle className="text-sm font-medium">全局 DashScope 语音识别</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">DashScope API Key</label>
+                    <label className="text-xs text-muted-foreground">DashScope API Key (留空保留现有密钥)</label>
                     <Input
                       type="password"
-                      value={settings?.system?.platform?.services?.dashscope_api_key || ""}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          system: {
-                            ...prev.system,
-                            platform: {
-                              ...prev.system?.platform,
-                              services: { ...prev.system?.platform?.services, dashscope_api_key: e.target.value },
-                            },
-                          },
-                        }))
-                      }
+                      value={adminPlatform.dashscope_key}
+                      onChange={(e) => setAdminPlatform((p) => ({ ...p, dashscope_key: e.target.value }))}
                       placeholder="sk-..."
                       className="text-xs h-8"
                     />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">解锁全站录音回答与 Copilot 实时语音字幕。</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    用于全站免配开启麦克风语音转写与实时会议字幕。
+                  </p>
                 </CardContent>
               </Card>
             </div>
