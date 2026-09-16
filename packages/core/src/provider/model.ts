@@ -110,9 +110,17 @@ export type PlatformProviderConfig = {
   tokenWindow: 'day' | 'month'
 }
 
+/**
+ * 平台共享凭据的**写入补丁**:逐字段可选,没传即不改。
+ *
+ * `data/system_settings.json` 里存的就是这个形状,启动时由 `entry.bun.ts` 叠加到
+ * `.env` 之上;跑起来真正用的完整形状是 `PlatformProviderConfig`。
+ * 内层字段写成必填会把"只改一项"变成"整份覆盖"——GET 回来的脱敏占位符
+ * `***` 会被当成新密钥写进去,真 key 就没了。
+ */
 export type SystemPlatformConfig = {
-  llm?: Pick<LlmSettings, 'api_base' | 'api_key' | 'model'> & { compatibility?: LlmCompatibility }
-  embedding?: Pick<EmbeddingSettings, 'api_base' | 'api_key' | 'api_model'>
+  llm?: Partial<Pick<LlmSettings, 'api_base' | 'api_key' | 'model'>> & { compatibility?: LlmCompatibility }
+  embedding?: Partial<Pick<EmbeddingSettings, 'api_base' | 'api_key' | 'api_model'>>
   services?: Partial<ServiceSettings>
   token_limit?: number
   token_window?: 'day' | 'month'

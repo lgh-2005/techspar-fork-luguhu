@@ -202,6 +202,7 @@ export default function Settings() {
     const [isAdmin, setIsAdmin] = useState(false);
   // 管理员全站公共服务配置状态
   const [adminPlatform, setAdminPlatform] = useState({
+    announcement: "",
     llm_api_base: "",
     llm_model: "",
     llm_api_key: "",
@@ -406,6 +407,7 @@ export default function Settings() {
         if (data.system?.platform) {
           const p = data.system.platform;
           setAdminPlatform({
+            announcement: data.system?.announcement || "",
             llm_api_base: p.llm?.api_base || "",
             llm_model: p.llm?.model || "",
             llm_api_key: "",

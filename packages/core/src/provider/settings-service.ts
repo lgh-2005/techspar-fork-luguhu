@@ -16,8 +16,46 @@ import {
   emptyServiceSettings,
   type PlatformProviderConfig,
   type SettingsView,
+  type SystemPlatformConfig,
+  type SystemSettings,
 } from './model.ts'
 import type { ProviderSettingsRepository, SettingsUseCases, VectorIndexControl } from './ports.ts'
+
+/** GET 给管理员看到的是脱敏视图,密钥位一律写死成这个占位符。 */
+const MASKED_SECRET = '***'
+
+/**
+ * 从整份回传里挑出"这次真的要写"的字段:没传的、以及脱敏占位符都不算。
+ *
+ * 前端表单是从 GET 的脱敏视图渲染出来的,保存时整份 PUT 回来。不做这层过滤,
+ * 一次保存就会把字面量 `***` 当成新密钥写进库里,把真实 key 覆盖掉。
+ */
+function stripMasked<T extends object>(value: T | undefined): Partial<T> {
+  if (!value) return {}
+  const kept: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (item === undefined || item === MASKED_SECRET) continue
+    kept[key] = item
+  }
+  return kept as Partial<T>
+}
+
+/**
+ * 落库时丢掉空串。空在这里就等于"没配",该由 `.env` 兜底。
+ *
+ * 不能把空串写进 system_settings.json:`entry.bun.ts` 启动时 llm/embedding 走
+ * `sysPlat?.x || config.x`(空串自动退回 env),但 `services` 是普通展开
+ * `{...config.platformServices, ...sysPlat.services}`——一个空串就能把部署方
+ * 写在 .env 里的服务凭据盖成空,平台兜底静默失效。
+ */
+function withoutBlanks<T extends object>(patch: Partial<T>): Partial<T> {
+  const kept: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(patch as Record<string, unknown>)) {
+    if (item === undefined || item === '') continue
+    kept[key] = item
+  }
+  return kept as Partial<T>
+}
 
 export class SettingsService implements SettingsUseCases {
   constructor(
@@ -91,26 +129,38 @@ export class SettingsService implements SettingsUseCases {
     const embeddingChanged = before !== after
     if (embeddingChanged) await this.indexes.invalidateUser(userId)
     if (user?.is_admin) {
-      await this.repository.saveSystem(value.system)
-      this.registration.allowRegistration = value.system.allow_registration
-      this.registration.announcement = value.system.announcement || ""
-      if (value.system.platform) {
-        if (value.system.platform.llm) {
-          this.platform.llm = { ...this.platform.llm, ...value.system.platform.llm }
-        }
-        if (value.system.platform.embedding) {
-          this.platform.embedding = { ...this.platform.embedding, ...value.system.platform.embedding }
-        }
-        if (value.system.platform.services) {
-          this.platform.services = { ...this.platform.services, ...value.system.platform.services }
-        }
-        if (typeof value.system.platform.token_limit === 'number') {
-          this.platform.tokenLimit = value.system.platform.token_limit
-        }
-        if (value.system.platform.token_window) {
-          this.platform.tokenWindow = value.system.platform.token_window
-        }
+      const previous = await this.repository.loadSystem()
+      const previousPlatform = previous?.platform
+      const incomingPlatform = value.system.platform
+      const llmDelta = stripMasked(incomingPlatform?.llm)
+      const embeddingDelta = stripMasked(incomingPlatform?.embedding)
+      const servicesDelta = stripMasked(incomingPlatform?.services)
+      // 合并而不是整体覆盖:主「保存」按钮只发 allow_registration,直接落库会把
+      // 公告和平台配置一起抹掉(公告那条路曾经就是这么丢的)。
+      const system: SystemSettings = { ...(previous ?? {}), allow_registration: value.system.allow_registration }
+      // 公告只在真的带了字符串时覆盖。空串是合法值,表示管理员主动清空。
+      if (typeof value.system.announcement === 'string') system.announcement = value.system.announcement
+      if (incomingPlatform) {
+        // 运行时按增量叠,保住 .env 兜底、这次没被显式改写的字段。
+        this.platform.llm = { ...this.platform.llm, ...llmDelta }
+        this.platform.embedding = { ...this.platform.embedding, ...embeddingDelta }
+        this.platform.services = { ...(this.platform.services ?? {}), ...servicesDelta }
+        if (incomingPlatform.token_limit !== undefined) this.platform.tokenLimit = incomingPlatform.token_limit
+        if (incomingPlatform.token_window !== undefined) this.platform.tokenWindow = incomingPlatform.token_window
+        // 落库的是「上一版增量 ⊕ 这次增量」,且不含空串——那份文件只负责启动时
+        // 叠加到 .env 之上,不是 config 的镜像。显式清空某项会让它退出 JSON,
+        // 重启后自然回到部署方的 env 值。
+        system.platform = {
+          llm: withoutBlanks({ ...previousPlatform?.llm, ...llmDelta }),
+          embedding: withoutBlanks({ ...previousPlatform?.embedding, ...embeddingDelta }),
+          services: withoutBlanks({ ...previousPlatform?.services, ...servicesDelta }),
+          token_limit: incomingPlatform.token_limit ?? previousPlatform?.token_limit,
+          token_window: incomingPlatform.token_window ?? previousPlatform?.token_window,
+        } satisfies SystemPlatformConfig
       }
+      await this.repository.saveSystem(system)
+      this.registration.allowRegistration = system.allow_registration
+      this.registration.announcement = system.announcement || ""
     }
     await this.repository.saveTraining(userId, value.training)
     return { ok: true, embedding_changed: embeddingChanged }

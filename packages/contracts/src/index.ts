@@ -126,7 +126,53 @@ export const ServiceFieldSchema = z.enum([
   'oss_endpoint',
 ])
 
-export const SystemSettingsSchema = z.object({ allow_registration: z.boolean().default(false) })
+/**
+ * 平台共享凭据的可写视图。逐字段可选——**没传即不改**。
+ *
+ * 和 `SystemPlatformConfig` 的关键差别在这里全是 optional：GET 返回的是脱敏视图
+ * （密钥位写死成 `***`），前端表单据此渲染后会把整份对象 PUT 回来。字段一旦声明成
+ * 必填或带 default，回传的 `***` 就会被当成新密钥落库，把真实 key 覆盖掉。
+ */
+export const SystemPlatformLlmSchema = z.object({
+  api_base: z.string().optional(),
+  api_key: z.string().optional(),
+  model: z.string().optional(),
+  compatibility: z.enum(['generic', 'deepseek']).optional(),
+})
+
+export const SystemPlatformEmbeddingSchema = z.object({
+  api_base: z.string().optional(),
+  api_key: z.string().optional(),
+  api_model: z.string().optional(),
+})
+
+export const SystemPlatformServiceSchema = z.object({
+  dashscope_api_key: z.string().optional(),
+  tavily_api_key: z.string().optional(),
+  oss_access_key_id: z.string().optional(),
+  oss_access_key_secret: z.string().optional(),
+  oss_bucket: z.string().optional(),
+  oss_endpoint: z.string().optional(),
+})
+
+export const SystemPlatformSettingsSchema = z.object({
+  llm: SystemPlatformLlmSchema.optional(),
+  embedding: SystemPlatformEmbeddingSchema.optional(),
+  services: SystemPlatformServiceSchema.optional(),
+  token_limit: z.number().int().nonnegative().optional(),
+  token_window: z.enum(['day', 'month']).optional(),
+})
+
+export const SystemSettingsSchema = z.object({
+  allow_registration: z.boolean().default(false),
+  /**
+   * 全站公告。刻意用 optional 而不是 `.default('')`：主「保存」按钮只发
+   * `allow_registration`，带默认值等于每次点保存都把公告清空。
+   */
+  announcement: z.string().optional(),
+  /** 仅管理员可写。非管理员在 GET 里拿到的就是 undefined。 */
+  platform: SystemPlatformSettingsSchema.optional(),
+})
 export const TrainingSettingsSchema = z.object({
   num_questions: z.number().int().min(5).max(20).default(10),
   divergence: z.number().int().min(1).max(5).default(3),

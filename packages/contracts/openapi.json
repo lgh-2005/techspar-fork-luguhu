@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "TechSpar",
-    "version": "0.5.0"
+    "version": "0.5.1"
   },
   "components": {
     "schemas": {
@@ -495,6 +495,83 @@
                         "allow_registration": {
                           "type": "boolean",
                           "default": false
+                        },
+                        "announcement": {
+                          "type": "string"
+                        },
+                        "platform": {
+                          "type": "object",
+                          "properties": {
+                            "llm": {
+                              "type": "object",
+                              "properties": {
+                                "api_base": {
+                                  "type": "string"
+                                },
+                                "api_key": {
+                                  "type": "string"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "compatibility": {
+                                  "type": "string",
+                                  "enum": [
+                                    "generic",
+                                    "deepseek"
+                                  ]
+                                }
+                              }
+                            },
+                            "embedding": {
+                              "type": "object",
+                              "properties": {
+                                "api_base": {
+                                  "type": "string"
+                                },
+                                "api_key": {
+                                  "type": "string"
+                                },
+                                "api_model": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "services": {
+                              "type": "object",
+                              "properties": {
+                                "dashscope_api_key": {
+                                  "type": "string"
+                                },
+                                "tavily_api_key": {
+                                  "type": "string"
+                                },
+                                "oss_access_key_id": {
+                                  "type": "string"
+                                },
+                                "oss_access_key_secret": {
+                                  "type": "string"
+                                },
+                                "oss_bucket": {
+                                  "type": "string"
+                                },
+                                "oss_endpoint": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "token_limit": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "token_window": {
+                              "type": "string",
+                              "enum": [
+                                "day",
+                                "month"
+                              ]
+                            }
+                          }
                         }
                       },
                       "default": {
@@ -737,6 +814,83 @@
                       "allow_registration": {
                         "type": "boolean",
                         "default": false
+                      },
+                      "announcement": {
+                        "type": "string"
+                      },
+                      "platform": {
+                        "type": "object",
+                        "properties": {
+                          "llm": {
+                            "type": "object",
+                            "properties": {
+                              "api_base": {
+                                "type": "string"
+                              },
+                              "api_key": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "compatibility": {
+                                "type": "string",
+                                "enum": [
+                                  "generic",
+                                  "deepseek"
+                                ]
+                              }
+                            }
+                          },
+                          "embedding": {
+                            "type": "object",
+                            "properties": {
+                              "api_base": {
+                                "type": "string"
+                              },
+                              "api_key": {
+                                "type": "string"
+                              },
+                              "api_model": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "services": {
+                            "type": "object",
+                            "properties": {
+                              "dashscope_api_key": {
+                                "type": "string"
+                              },
+                              "tavily_api_key": {
+                                "type": "string"
+                              },
+                              "oss_access_key_id": {
+                                "type": "string"
+                              },
+                              "oss_access_key_secret": {
+                                "type": "string"
+                              },
+                              "oss_bucket": {
+                                "type": "string"
+                              },
+                              "oss_endpoint": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "token_limit": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "token_window": {
+                            "type": "string",
+                            "enum": [
+                              "day",
+                              "month"
+                            ]
+                          }
+                        }
                       }
                     },
                     "default": {

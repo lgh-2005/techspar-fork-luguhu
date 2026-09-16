@@ -358,6 +358,32 @@ export interface paths {
                             system: {
                                 /** @default false */
                                 allow_registration: boolean;
+                                announcement?: string;
+                                platform?: {
+                                    llm?: {
+                                        api_base?: string;
+                                        api_key?: string;
+                                        model?: string;
+                                        /** @enum {string} */
+                                        compatibility?: "generic" | "deepseek";
+                                    };
+                                    embedding?: {
+                                        api_base?: string;
+                                        api_key?: string;
+                                        api_model?: string;
+                                    };
+                                    services?: {
+                                        dashscope_api_key?: string;
+                                        tavily_api_key?: string;
+                                        oss_access_key_id?: string;
+                                        oss_access_key_secret?: string;
+                                        oss_bucket?: string;
+                                        oss_endpoint?: string;
+                                    };
+                                    token_limit?: number;
+                                    /** @enum {string} */
+                                    token_window?: "day" | "month";
+                                };
                             };
                             training: {
                                 /** @default 10 */
@@ -490,6 +516,32 @@ export interface paths {
                         system?: {
                             /** @default false */
                             allow_registration?: boolean;
+                            announcement?: string;
+                            platform?: {
+                                llm?: {
+                                    api_base?: string;
+                                    api_key?: string;
+                                    model?: string;
+                                    /** @enum {string} */
+                                    compatibility?: "generic" | "deepseek";
+                                };
+                                embedding?: {
+                                    api_base?: string;
+                                    api_key?: string;
+                                    api_model?: string;
+                                };
+                                services?: {
+                                    dashscope_api_key?: string;
+                                    tavily_api_key?: string;
+                                    oss_access_key_id?: string;
+                                    oss_access_key_secret?: string;
+                                    oss_bucket?: string;
+                                    oss_endpoint?: string;
+                                };
+                                token_limit?: number;
+                                /** @enum {string} */
+                                token_window?: "day" | "month";
+                            };
                         };
                         training: {
                             /** @default 10 */
