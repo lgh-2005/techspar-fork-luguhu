@@ -20,6 +20,8 @@ describe('knowledge import compatibility', () => {
       ai: { async complete() { return '' }, async *stream() {} },
       ids: new ShortUuidGenerator(),
     })
+    // 预置领域已清空：这里显式建出测试所需的 java 领域，不再依赖种子。
+    await service.createTopic(context, { name: 'Java', key: 'java' })
   })
 
   afterEach(async () => rm(root, { recursive: true, force: true }))

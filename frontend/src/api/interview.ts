@@ -148,6 +148,21 @@ export async function inferTargetRole(): Promise<
   return res.json();
 }
 
+type SuggestTopicsBody = ApiRequestBody<"/api/profile/suggest-topics", "post">;
+
+/** 按可用性降级推导训练领域：优先简历，其次目标岗位，最后用户自述。 */
+export async function suggestTopics(
+  answers?: SuggestTopicsBody["answers"]
+): Promise<ApiResponse<"/api/profile/suggest-topics", "post">> {
+  const res = await authFetch(`${API_BASE}/profile/suggest-topics`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(answers ? { answers } : {}),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function previewJobPrep(
   payload: JobPrepPreviewBody
 ): Promise<ApiResponse<"/api/job-prep/preview", "post">> {

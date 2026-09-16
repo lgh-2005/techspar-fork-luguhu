@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { Menu, X, Sparkles, Upload, ChevronRight, ChevronDown } from "lucide-react";
 import { getTopicIcon } from "../utils/topicIcons";
@@ -30,6 +31,7 @@ function errorMessage(error: unknown) {
 }
 
 export default function Knowledge() {
+  const navigate = useNavigate();
   const [topics, setTopics] = useState<Topics>({});
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<"core" | "high_freq">("core");
@@ -227,7 +229,21 @@ export default function Knowledge() {
           <Button variant="ghost" size="icon" className="w-6 h-6 text-base" title="新增领域" onClick={() => setShowAddTopic(true)}>+</Button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {topicKeys.map((key) => (
+          {topicKeys.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/80 bg-card/40 p-3 text-center">
+              <p className="text-[12px] leading-5 text-dim">
+                还没有领域。可以让 AI 从你的简历或一句话里推导出值得练的具体方向。
+              </p>
+              <Button
+                variant="gradient"
+                size="sm"
+                className="mt-2.5 w-full"
+                onClick={() => navigate("/topic-drill?guide=1")}
+              >
+                帮我想一个方向
+              </Button>
+            </div>
+          ) : topicKeys.map((key) => (
             <div key={key} className="relative mb-0.5 group">
               <button
                 className={cn(

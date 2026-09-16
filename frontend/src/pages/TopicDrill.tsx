@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowUpRight, BookOpen, Layers, Loader2, Play, Plus, Target } from "lucide-react";
 import TopicCard from "../components/TopicCard";
 import AddTopicDialog from "../components/AddTopicDialog";
+import TopicDiscoveryWizard from "../components/TopicDiscoveryWizard";
 import { getTopics, startInterview } from "../api/interview";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,10 +29,12 @@ function errorMessage(error: unknown) {
 
 export default function TopicDrill() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [topics, setTopics] = useState<Topics>({});
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [showAddTopic, setShowAddTopic] = useState(false);
+  const [showWizard, setShowWizard] = useState(searchParams.get("guide") === "1");
   const { creatingSessionMode, setCreatingSessionMode } = useTaskStatus();
   const loading = creatingSessionMode === "topic_drill";
   const topicEntries = Object.entries(topics);
@@ -52,25 +55,49 @@ export default function TopicDrill() {
     return () => { active = false; };
   }, []);
 
-  const handleTopicCreated = async (key: string) => {
+  // 从「训练领域管理」带 ?guide=1 跳进来时，用完就把参数清掉，避免刷新反复弹向导。
+  useEffect(() => {
+    if (searchParams.get("guide") !== "1") return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("guide");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const refreshTopics = async () => {
     try {
       const data = await getTopics();
       setTopics(data as unknown as Topics);
     } catch { /* 列表刷新失败时保持现状 */ }
+  };
+
+  const handleTopicCreated = async (key: string) => {
+    await refreshTopics();
     setSelectedTopic(key);
   };
 
-  const handleStart = async () => {
-    if (!selectedTopic) return;
+  const runStart = async (key: string) => {
     setCreatingSessionMode("topic_drill");
     try {
-      const data = await startInterview("topic_drill", selectedTopic) as unknown as StartInterviewResponse;
+      const data = await startInterview("topic_drill", key) as unknown as StartInterviewResponse;
       navigate(`/interview/${data.session_id}`, { state: data });
     } catch (error) {
       alert("启动失败: " + errorMessage(error));
     } finally {
       setCreatingSessionMode(null);
     }
+  };
+
+  const handleStart = async () => {
+    if (!selectedTopic) return;
+    await runStart(selectedTopic);
+  };
+
+  // 引导向导走完即视为「已决定练这个方向」，直接建会话进训练，省掉一次确认点击。
+  const handleWizardCreated = async (key: string) => {
+    setShowWizard(false);
+    await refreshTopics();
+    setSelectedTopic(key);
+    await runStart(key);
   };
 
   return (
@@ -119,6 +146,11 @@ export default function TopicDrill() {
               <Skeleton key={index} className="h-[96px] rounded-2xl border border-border/50 bg-card/60" />
             ))}
           </div>
+        ) : topicEntries.length === 0 && showWizard ? (
+          <TopicDiscoveryWizard
+            onCreated={handleWizardCreated}
+            onCancel={() => setShowWizard(false)}
+          />
         ) : topicEntries.length === 0 ? (
           <Card className="border-dashed border-border/80 bg-card/45">
             <CardContent className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
@@ -127,11 +159,16 @@ export default function TopicDrill() {
               </div>
               <h3 className="mt-4 text-base font-semibold text-text">还没有训练领域</h3>
               <p className="mt-2 max-w-md text-[13px] leading-6 text-dim">
-                先创建一个领域并准备核心知识，就能选择它开始专项训练。
+                你的领域会从简历、目标岗位或你自己的一句话里推导出来，具体到可以直接出题。
               </p>
-              <Button variant="gradient" className="mt-5" onClick={() => setShowAddTopic(true)}>
-                创建训练领域
-              </Button>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <Button variant="gradient" onClick={() => setShowWizard(true)}>
+                  帮我找方向
+                </Button>
+                <Button variant="outline" onClick={() => setShowAddTopic(true)}>
+                  我已经知道要建什么
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -147,7 +184,7 @@ export default function TopicDrill() {
             ))}
             <button
               type="button"
-              onClick={() => setShowAddTopic(true)}
+              onClick={() => setShowWizard(true)}
               className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-border/80 bg-card/30 p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:bg-card hover:shadow-lg hover:shadow-primary/5 md:gap-5 md:px-6 md:py-5"
             >
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-dashed border-border/80 text-dim transition-colors duration-300 group-hover:border-primary/30 group-hover:bg-primary/10 group-hover:text-primary md:h-14 md:w-14">
@@ -157,7 +194,7 @@ export default function TopicDrill() {
                 <div className="text-[14px] font-extrabold leading-snug tracking-tight text-text transition-colors duration-300 group-hover:text-primary/95 md:text-[15px]">
                   新建领域
                 </div>
-                <div className="mt-0.5 text-[12px] text-dim">没找到你的方向？新建一个</div>
+                <div className="mt-0.5 text-[12px] text-dim">没找到你的方向？让 AI 帮你找</div>
               </div>
             </button>
           </div>

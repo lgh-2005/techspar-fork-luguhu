@@ -4,6 +4,9 @@ import {
   Globe, Cpu, Network, Shield, Layers, BookOpen,
   Workflow, Zap, Server, GitBranch, Cloud, Blocks, Hash,
   Binary, Lock, Rocket, FolderCode, MessageSquare,
+  Gauge, Calculator, Users, Scale, GraduationCap, Building2,
+  FlaskConical, Stethoscope, HeartPulse, ClipboardList, TrendingUp, PenTool,
+  Truck, Factory, PiggyBank, Landmark,
 } from "lucide-react";
 
 const ICON_MAP = {
@@ -12,6 +15,9 @@ const ICON_MAP = {
   Globe, Cpu, Network, Shield, Layers, BookOpen,
   Workflow, Zap, Server, GitBranch, Cloud, Blocks, Hash,
   Binary, Lock, Rocket, FolderCode, MessageSquare,
+  Gauge, Calculator, Users, Scale, GraduationCap, Building2,
+  FlaskConical, Stethoscope, HeartPulse, ClipboardList, TrendingUp, PenTool,
+  Truck, Factory, PiggyBank, Landmark,
 };
 
 export const ICON_OPTIONS = Object.entries(ICON_MAP).map(([name, Icon]) => ({

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "TechSpar",
-    "version": "0.4.2"
+    "version": "0.5.0"
   },
   "components": {
     "schemas": {
@@ -3111,6 +3111,102 @@
                   "required": [
                     "target_role"
                   ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/profile/suggest-topics": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "answers": {
+                    "type": "object",
+                    "properties": {
+                      "recent": {
+                        "type": "string"
+                      },
+                      "target_role": {
+                        "type": "string"
+                      },
+                      "focus": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Suggest training topics from the candidate materials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "resume",
+                        "jd",
+                        "conversation"
+                      ]
+                    },
+                    "candidates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "evidence": {
+                            "type": "string"
+                          },
+                          "icon": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "reason",
+                          "evidence"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "candidates"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }

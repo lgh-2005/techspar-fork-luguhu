@@ -1,6 +1,6 @@
 import { createRoute, type OpenAPIHono } from '@hono/zod-openapi'
 import { z } from 'zod'
-import { ProfileFeedbackSchema, ProfileSchema, RetrospectiveTaskSchema, TargetRoleSchema } from '@techspar/contracts'
+import { ProfileFeedbackSchema, ProfileSchema, RetrospectiveTaskSchema, SuggestTopicsSchema, TargetRoleSchema, TopicSuggestionsSchema } from '@techspar/contracts'
 import type { ProfileUseCases, TokenService } from '@techspar/core'
 import { authenticatedContext } from '../http/context.ts'
 
@@ -12,6 +12,9 @@ export function registerProfileRoutes(app: OpenAPIHono, deps: { profile: Profile
 
   app.openapi(createRoute({ method: 'post', path: '/api/profile/infer-target-role', responses: { 200: { content: { 'application/json': { schema: TargetRoleSchema } }, description: 'Infer role' } } }),
     async (c) => c.json(await deps.profile.inferTargetRole(await authenticatedContext(c, deps.tokens))))
+
+  app.openapi(createRoute({ method: 'post', path: '/api/profile/suggest-topics', request: { body: { required: false, content: { 'application/json': { schema: SuggestTopicsSchema } } } }, responses: { 200: { content: { 'application/json': { schema: TopicSuggestionsSchema } }, description: 'Suggest training topics from the candidate materials' } } }),
+    async (c) => c.json(await deps.profile.suggestTopics(await authenticatedContext(c, deps.tokens), c.req.valid('json')?.answers)))
 
   app.openapi(createRoute({ method: 'post', path: '/api/profile/viewed', responses: { 200: { content: { 'application/json': { schema: ProfileSchema } }, description: 'Mark profile viewed' } } }),
     async (c) => c.json(await deps.profile.viewed(await authenticatedContext(c, deps.tokens))))

@@ -52,6 +52,23 @@ const RETROSPECTIVE_PROMPT = `你是面试教练，请基于「{topic_name}」�
 如果历史中没有足够证据支持某个部分，明确写「暂无足够记录」，不要用泛泛的夸奖或推测代替。`
 const CONSOLIDATION_PROMPT = `你是面试教练的模式识别引擎。仅从下列活跃薄弱点中归纳跨至少两个领域、比原观察更抽象、可被后续证据证伪的稳定规律。宁可返回空数组，不要编造。\n\n{weak_points}\n\n只返回 JSON：{"patterns":[{"statement":"40字以内的规律","supporting_wp_indices":[0,2],"topic":"cross_cutting","confidence":0.8}]}`
 
+const SUGGEST_TOPICS_PROMPT = `你是面试训练方向的规划引擎。根据下面的候选人材料，给出 3-5 个「可以拿来出题的具体训练领域」。
+
+硬性要求：
+- 每个方向的粒度必须是「一项具体技能 + 一个具体场景」，相当于一个专项技能能被拆出 8-12 道题的规模
+- 禁止输出学科大类名称（如「机械工程」「计算机」「市场营销」「财务」「教育学」）
+- 禁止输出单一软技能（如「沟通能力」「学习能力」）
+- 每个方向必须能从材料中找到依据，把依据原文片段填进 evidence，不得编造
+- reason 用一句话说明"为什么推荐这个方向"，面向用户讲，不要讲方法论
+- icon 从下列白名单中选一个：FileText Brain BookOpen Wrench Layers Globe MessageSquare Shield Gauge Calculator Users Scale GraduationCap Building2 FlaskConical Stethoscope HeartPulse ClipboardList TrendingUp PenTool
+- 材料不足以支撑 3 个方向时，宁可只给 2 个，也不要凑数泛化
+
+只返回 JSON，不要解释：
+{"candidates":[{"name":"方向名（8-20 字）","reason":"推荐理由","evidence":"材料原文片段","icon":"Wrench"}]}
+
+## 候选人材料（来源：{source_label}）
+{material}`
+
 const BEHAVIOR_NAMESPACES = new Set(['reasoning', 'narrative', 'communication', 'metacognition'])
 const BEHAVIOR_ID = /^([a-z_]+)\.([a-z][a-z0-9_]*)$/
 const WEAK_POINT_SIMILARITY = 0.75
@@ -60,6 +77,27 @@ const MEMORY_HALF_LIFE_DAYS = 14
 const MEMORY_DECAY_WEIGHT = 0.3
 const CONSOLIDATION_MIN_ACTIVE = 5
 const CONSOLIDATION_COOLDOWN_MS = 24 * 60 * 60 * 1000
+
+/** 领域推荐：材料低于该长度视为「说不出方向」，直接让前端走对话式兜底。 */
+const MIN_SUGGEST_MATERIAL = 30
+/** 领域推荐：简历原文截断长度，控制单次 token 消耗。 */
+const MAX_SUGGEST_RESUME_CHARS = 6000
+/** 领域推荐：候选上限。提示词要求 3-5 个，这里兜住模型超发。 */
+const MAX_SUGGEST_CANDIDATES = 5
+/** 领域推荐：候选名称长度区间，过滤掉「一句话」和「两个字」这类不可出题的粒度。 */
+const SUGGEST_NAME_MIN = 4
+const SUGGEST_NAME_MAX = 30
+
+type TopicSuggestionSource = 'resume' | 'jd' | 'conversation'
+
+const SUGGEST_SOURCE_LABELS: Record<TopicSuggestionSource, string> = { resume: '简历', jd: '目标岗位', conversation: '候选人自述' }
+
+/** 与 SUGGEST_TOPICS_PROMPT 白名单、前端 topicIcons.jsx 的 ICON_MAP 三方保持一致。 */
+const TOPIC_ICON_WHITELIST = new Set([
+  'FileText', 'Brain', 'BookOpen', 'Wrench', 'Layers', 'Globe', 'MessageSquare', 'Shield',
+  'Gauge', 'Calculator', 'Users', 'Scale', 'GraduationCap', 'Building2',
+  'FlaskConical', 'Stethoscope', 'HeartPulse', 'ClipboardList', 'TrendingUp', 'PenTool',
+])
 
 function id(context: RequestContext): string { if (!context.userId) throw new AuthenticationError(); return context.userId }
 function object(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {} }
@@ -368,6 +406,58 @@ export class ProfileService implements ProfileUseCases, CandidateProfilePort {
     const role = (await this.deps.ai.complete(context, [{ role: 'system', content: '你是岗位推断引擎。只返回岗位名称，不要其他内容。' }, { role: 'user', content: fill(INFER_ROLE_PROMPT, { resume }) }])).trim().replace(/^["「]|["」]$/g, '').trim()
     if (!role) throw new AppError('推断失败，请手动填写', 500)
     return { target_role: role }
+  }
+
+  async suggestTopics(context: RequestContext, answers?: { recent?: string; target_role?: string; focus?: string }) {
+    const userId = id(context)
+    const resumeText = (await this.deps.resume.text(context).catch(() => '')).trim()
+    const recent = text(answers?.recent)
+    const role = text(answers?.target_role) || (await this.targetRole(userId))
+    const focus = text(answers?.focus)
+
+    // 三级降级：简历原文 → 目标岗位 → 用户自述。自述优先于岗位，因为用户主动描述时
+    // 说明他更信任自己的表述；岗位只作为附加上下文。
+    let source: TopicSuggestionSource
+    let material: string
+    if (resumeText.length >= MIN_SUGGEST_MATERIAL) {
+      source = 'resume'
+      material = resumeText.slice(0, MAX_SUGGEST_RESUME_CHARS)
+    } else if (recent) {
+      source = 'conversation'
+      material = [`最近在做/学：${recent}`, role ? `目标岗位：${role}` : '', focus ? `最想被考到的具体主题：${focus}` : ''].filter(Boolean).join('\n')
+    } else if (role) {
+      source = 'jd'
+      material = `目标岗位：${role}`
+    } else {
+      throw new AppError('材料太少，请补充一点你的方向', 400)
+    }
+    // 岗位名本身很短但可用，所以长度门只对自由文本（简历/自述）生效。
+    if (source !== 'jd' && material.length < MIN_SUGGEST_MATERIAL) throw new AppError('材料太少，请补充一点你的方向', 400)
+
+    const existing = Object.values(await this.deps.knowledgeStore.loadTopics(userId).catch(() => ({})))
+      .map((topic) => topic?.name).filter((name): name is string => Boolean(name && name.trim()))
+    const existingHint = existing.length ? `\n\n候选人已有这些领域，不要重复推荐：${existing.join('、')}` : ''
+
+    const reply = await this.deps.ai.complete(context, [
+      { role: 'system', content: '你是面试训练方向的规划引擎。只返回 JSON，不要解释。' },
+      { role: 'user', content: fill(SUGGEST_TOPICS_PROMPT, { source_label: SUGGEST_SOURCE_LABELS[source], material: material + existingHint }) },
+    ], STRUCTURED_CHAT_OPTIONS)
+
+    const parsed = (() => { try { return parseJsonResponse(reply) } catch { return null } })()
+    const raw = Array.isArray((parsed as { candidates?: unknown[] } | null)?.candidates)
+      ? (parsed as { candidates: Array<Record<string, unknown>> }).candidates
+      : []
+    const seen = new Set<string>()
+    const candidates = raw
+      .map((item) => ({
+        name: text(item?.name),
+        reason: text(item?.reason),
+        evidence: text(item?.evidence),
+        icon: TOPIC_ICON_WHITELIST.has(text(item?.icon)) ? text(item?.icon) : undefined,
+      }))
+      .filter((item) => item.name.length >= SUGGEST_NAME_MIN && item.name.length <= SUGGEST_NAME_MAX && Boolean(seen.add(item.name)))
+      .slice(0, MAX_SUGGEST_CANDIDATES)
+    return { source, candidates }
   }
 
   async viewed(context: RequestContext): Promise<Record<string, unknown>> {

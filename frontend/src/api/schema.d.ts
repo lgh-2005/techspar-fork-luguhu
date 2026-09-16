@@ -2464,6 +2464,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/profile/suggest-topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        answers?: {
+                            recent?: string;
+                            target_role?: string;
+                            focus?: string;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Suggest training topics from the candidate materials */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            source: "resume" | "jd" | "conversation";
+                            candidates: {
+                                name: string;
+                                reason: string;
+                                evidence: string;
+                                icon?: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Validation Error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HTTPValidationError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/profile/viewed": {
         parameters: {
             query?: never;

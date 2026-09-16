@@ -32,6 +32,7 @@ export interface ProfileVectorMemoryPort {
 export interface ProfileUseCases {
   get(context: RequestContext): Promise<CandidateProfile>
   inferTargetRole(context: RequestContext): Promise<{ target_role: string }>
+  suggestTopics(context: RequestContext, answers?: { recent?: string; target_role?: string; focus?: string }): Promise<{ source: 'resume' | 'jd' | 'conversation'; candidates: Array<{ name: string; reason: string; evidence: string; icon?: string }> }>
   viewed(context: RequestContext): Promise<Record<string, unknown>>
   feedback(context: RequestContext, point: string, verdict: string): Promise<Record<string, unknown>>
   dueReviews(context: RequestContext, topic?: string): Promise<Array<Record<string, unknown>>>

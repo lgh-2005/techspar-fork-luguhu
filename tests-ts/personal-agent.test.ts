@@ -14,7 +14,9 @@ afterEach(async () => { while (roots.length) await rm(roots.pop()!, { recursive:
 const context = (userId: string): RequestContext => ({ requestId: 'test', userId, signal: new AbortController().signal })
 const profile: ProfileUseCases = {
   async get() { const value = defaultProfile(); value.target_role = '后端工程师'; return value },
-  async inferTargetRole() { return { target_role: '' } }, async viewed() { return {} }, async feedback() { return {} },
+  async inferTargetRole() { return { target_role: '' } },
+  async suggestTopics() { return { source: 'conversation' as const, candidates: [{ name: 'GIL 并发调试', reason: '测试桩', evidence: '测试桩', icon: 'Cpu' }] } },
+  async viewed() { return {} }, async feedback() { return {} },
   async dueReviews() { return [{ point: 'GIL', topic: 'python' }] }, async topicHistory() { return [] },
   async retrospective() { return { task_id: '', status: 'pending' } }, async runRetrospectiveTask() { return {} },
 }

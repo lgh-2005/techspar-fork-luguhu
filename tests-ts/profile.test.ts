@@ -23,8 +23,10 @@ afterEach(async () => { while (directories.length) await rm(directories.pop()!, 
 const context: RequestContext = { requestId: 'test', userId: 'user-a', signal: new AbortController().signal }
 
 class ReplyAi implements TextGenerationUseCases {
+  calls: Array<{ messages: readonly ChatMessage[]; options?: unknown }> = []
   constructor(private readonly replies: string[]) {}
-  async complete(_context: RequestContext, _messages: readonly ChatMessage[]): Promise<string> {
+  async complete(_context: RequestContext, messages: readonly ChatMessage[], options?: unknown): Promise<string> {
+    this.calls.push({ messages, options })
     const reply = this.replies.shift(); if (reply === undefined) throw new Error('Unexpected LLM call'); return reply
   }
   async *stream(): AsyncIterable<string> {}
@@ -39,7 +41,7 @@ function embedding(text: string): Float32Array {
   return Float32Array.from([0, 0, 0, 0, 0, 1])
 }
 
-async function fixture(replies: string[]) {
+async function fixture(replies: string[], options: { resumeText?: string; resumeStatus?: 'has_resume' | 'empty'; existingTopics?: Record<string, { name: string; icon: string; dir: string }> } = {}) {
   const root = await directory()
   const path = join(root, 'techspar.db')
   const repository = new FileCandidateProfileRepository(root)
@@ -51,10 +53,20 @@ async function fixture(replies: string[]) {
     async enqueue(input) { return { task_id: input.taskId, user_id: input.userId, type: input.type, status: 'pending', payload: input.payload, result: null, error: null, attempts: 0, created_at: '', updated_at: '' } },
     async get() { return undefined },
   }
-  const resume: ProfileDependencies['resume'] = { async status() { return { has_resume: false } }, async file() { throw new Error() }, async upload() { throw new Error() }, async delete() { throw new Error() }, async text() { return '' }, async parse() { throw new Error() }, async transcribe() { throw new Error() } }
-  const knowledgeStore: ProfileDependencies['knowledgeStore'] = { async loadTopics() { return {} }, async saveTopics() {}, async ensureTopic() {}, async listCore() { return [] }, async writeCore() {}, async deleteCore() { return false }, async readHighFrequency() { return '' }, async writeHighFrequency() {} }
+  const resumeText = options.resumeText ?? ''
+  const hasResume = options.resumeStatus === 'has_resume' || resumeText.length > 0
+  const resume: ProfileDependencies['resume'] = {
+    async status() { return hasResume ? { has_resume: true, filename: 'resume.pdf', size: resumeText.length } : { has_resume: false } },
+    async file() { throw new Error() }, async upload() { throw new Error() }, async delete() { throw new Error() },
+    async text() { return resumeText },
+    async parse() { throw new Error() }, async transcribe() { throw new Error() },
+  }
+  const knowledgeStore: ProfileDependencies['knowledgeStore'] = {
+    async loadTopics() { return options.existingTopics ?? {} },
+    async saveTopics() {}, async ensureTopic() {}, async listCore() { return [] }, async writeCore() {}, async deleteCore() { return false }, async readHighFrequency() { return '' }, async writeHighFrequency() {},
+  }
   const service = new ProfileService({ repository, sessions, tasks, ai, embeddings, vectors, resume, knowledgeStore })
-  return { service, repository, sessions, vectors }
+  return { service, repository, sessions, vectors, ai }
 }
 
 function reviewedSession(input: Partial<InterviewSession> = {}): InterviewSession {
@@ -195,6 +207,61 @@ describe('long-term profile loop', () => {
     const summary = await service.summary('user-a', 'python')
     expect(summary).toContain('本轮到期复习：GIL 机制需要复习')
     expect(summary.indexOf('近期洞察')).toBeLessThan(summary.indexOf('较早洞察'))
+    sessions.close(); vectors.close()
+  })
+})
+
+describe('topic discovery', () => {
+  const resumeText = '机械设计制造及其自动化专业。负责汽车液压制动系统的选型与台架标定，完成过制动主缸与轮缸匹配计算，参与装配线节拍优化。'
+
+  test('derives candidates from the resume and keeps them concrete', async () => {
+    const reply = JSON.stringify({ candidates: [
+      { name: '汽车液压制动系统匹配设计', reason: '简历里有制动主缸与轮缸匹配计算', evidence: '完成过制动主缸与轮缸匹配计算', icon: 'Gauge' },
+      { name: '装配线节拍优化', reason: '简历提到参与装配线节拍优化', evidence: '参与装配线节拍优化', icon: 'Workflow' },
+      { name: '机械', reason: '学科大类，应被长度过滤', evidence: '机械', icon: 'Wrench' },
+    ] })
+    const { service, sessions, vectors, ai } = await fixture([reply], { resumeText })
+    const result = await service.suggestTopics(context)
+    expect(result.source).toBe('resume')
+    expect(result.candidates.map((item) => item.name)).toEqual(['汽车液压制动系统匹配设计', '装配线节拍优化'])
+    expect(result.candidates[0]).toMatchObject({ icon: 'Gauge', evidence: '完成过制动主缸与轮缸匹配计算' })
+    expect(ai.calls).toHaveLength(1)
+    expect(ai.calls[0]!.options).toMatchObject({ jsonMode: true })
+    expect(String((ai.calls[0]!.messages[1] as ChatMessage).content)).toContain('汽车液压制动系统')
+    sessions.close(); vectors.close()
+  })
+
+  test('falls back to the target role when no resume exists', async () => {
+    const reply = JSON.stringify({ candidates: [{ name: '注塑成型工艺参数调优', reason: '与目标岗位相关', evidence: '目标岗位：注塑工艺工程师', icon: 'Factory' }] })
+    const { service, repository, sessions, vectors } = await fixture([reply], { existingTopics: { java: { name: 'Java', icon: 'Cpu', dir: '01_Java' } } })
+    const profile = defaultProfile(); profile.target_role = '注塑工艺工程师'
+    await repository.save('user-a', profile)
+    const result = await service.suggestTopics(context)
+    expect(result.source).toBe('jd')
+    expect(result.candidates).toHaveLength(1)
+    sessions.close(); vectors.close()
+  })
+
+  test('uses the conversation answers and drops a non-whitelisted icon', async () => {
+    const reply = JSON.stringify({ candidates: [{ name: '混凝土配合比设计校核', reason: '你提到在做配合比', evidence: '最近在做配合比', icon: 'NotARealIcon' }] })
+    const { service, sessions, vectors } = await fixture([reply])
+    const result = await service.suggestTopics(context, { recent: '工地做混凝土配合比试配和强度回弹检测', focus: '配合比设计' })
+    expect(result.source).toBe('conversation')
+    expect(result.candidates[0]).toMatchObject({ name: '混凝土配合比设计校核', icon: undefined })
+    sessions.close(); vectors.close()
+  })
+
+  test('rejects material that is too short and never calls the model', async () => {
+    const { service, sessions, vectors, ai } = await fixture([])
+    await expect(service.suggestTopics(context, { recent: '做工程' })).rejects.toThrow('材料太少')
+    expect(ai.calls).toHaveLength(0)
+    sessions.close(); vectors.close()
+  })
+
+  test('returns empty candidates instead of failing when the model reply is not JSON', async () => {
+    const { service, sessions, vectors } = await fixture(['抱歉，我无法完成这个请求。'], { resumeText })
+    const result = await service.suggestTopics(context)
+    expect(result).toMatchObject({ source: 'resume', candidates: [] })
     sessions.close(); vectors.close()
   })
 })

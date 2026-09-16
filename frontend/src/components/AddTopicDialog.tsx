@@ -54,7 +54,7 @@ export default function AddTopicDialog({ open, onClose, onCreated }: AddTopicDia
           <div className="mb-3.5 space-y-1.5">
             <Label>名称</Label>
             <Input
-              placeholder="Docker 容器化"
+              placeholder="例：汽车液压制动系统设计"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
@@ -81,7 +81,7 @@ export default function AddTopicDialog({ open, onClose, onCreated }: AddTopicDia
             </div>
           </div>
           <p className="text-[12px] leading-5 text-dim">
-            创建后先补充核心知识（手写或让 AI 生成基础内容），出题会更贴合你的方向。
+            建议写得具体一些——「汽车液压制动系统设计」比「机械工程」更容易出好题。创建后先补充核心知识（手写或让 AI 生成基础内容），出题会更贴合你的方向。
           </p>
           <div className="flex gap-2.5 justify-end mt-6">
             <Button variant="outline" onClick={handleClose}>取消</Button>
